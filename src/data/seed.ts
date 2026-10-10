@@ -376,11 +376,12 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
   }
 
   // 4. Rescheduled and cancelled sessions, kept for the audit trail.
-  //    Move a session one weekday later, onto a date its crew can still work.
+  //    Move a session to a nearby weekday its crew can still work.
   const movable = world.sessions.filter((s) => s.territoryId === 'lou' && s.date >= addDays(monday, 7) && s.status === 'confirmed' && s.assignments.length && !s.overrides.length)
-  for (const toMove of movable) {
-    const newDate = addDays(toMove.date, 1)
-    if (new Date(`${newDate}T00:00:00Z`).getUTCDay() > 5) continue
+  moving: for (const toMove of movable) for (const offset of [1, -1, 2, -2, 3]) {
+    const newDate = addDays(toMove.date, offset)
+    const dow = new Date(`${newDate}T00:00:00Z`).getUTCDay()
+    if (dow === 0 || dow === 6 || newDate < today) continue
     const moved: Session = {
       ...toMove,
       id: '',
@@ -399,7 +400,7 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
       history: [...toMove.history, { at, by: 'Priya Raman', text: `Rescheduled to ${newDate} ${toMove.start}-${toMove.end} (center picture day)` }],
     })
     world.sessions.push(moved)
-    break
+    break moving
   }
   const toCancel = world.sessions.find((s) => s.territoryId === 'oak' && s.date >= today && s.status === 'confirmed')
   if (toCancel) {

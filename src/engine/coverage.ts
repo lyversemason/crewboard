@@ -67,7 +67,7 @@ export function checkCoverage(req: CoverageRequest, world: World): CoverageResul
         ? 'No coach is free and able to get there.'
         : leads === 0
           ? 'No lead coach is free.'
-          : `Not enough coaches for a group of ${largestGroup(req)} at 1:${world.settings.ratio}.`
+          : `Needs ${coachesNeeded(largestGroup(req), world.settings.ratio)} coaches, ${pool.filter(countsTowardRatio).length} free.`
     return { date, ok: false, exampleCrew: [], freeCoaches: pool.length, reason }
   })
 

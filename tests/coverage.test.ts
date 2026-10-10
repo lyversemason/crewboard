@@ -36,7 +36,7 @@ describe('sales intake coverage check', () => {
     const w = world({ coaches: [coach('lead1', 'lead'), coach('trainee1', 'trainee')] })
     const r = checkCoverage(req({ groups: [{ players: 13, ageRange: '5', minutes: 60 }] }), w)
     expect(r.ok).toBe(false)
-    expect(r.dates[0].reason).toContain('Not enough coaches')
+    expect(r.dates[0].reason).toBe('Needs 2 coaches, 1 free.')
   })
 
   it('treats travel time as a hard rule (no overrides in sales)', () => {

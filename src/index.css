@@ -85,6 +85,7 @@ small, .small { font-size: 0.82rem; }
 .btn:hover:not(:disabled) { border-color: var(--brand); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn.primary:disabled, .btn.danger:disabled { background: var(--surface-2); border-color: var(--line); color: var(--muted); opacity: 1; }
 .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.ghost { background: transparent; }
 .btn.on { border-color: var(--brand); background: var(--brand-soft); }
@@ -289,6 +290,7 @@ table.groups { width: 100%; border-collapse: collapse; margin: 0.5em 0; font-siz
 .date-checks li.ok span::before { content: '✓ '; color: var(--ok); }
 .date-checks li.bad span::before { content: '✗ '; color: var(--bad); }
 .date-checks li.bad small { color: var(--bad); }
+.date-checks span { white-space: nowrap; }
 .date-checks small { color: var(--muted); text-align: right; }
 .suggest { margin: 0.75em 0; }
 .suggestion { display: flex; width: 100%; justify-content: space-between; margin-bottom: 0.35em; }

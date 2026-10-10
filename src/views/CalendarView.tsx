@@ -37,8 +37,8 @@ export function CalendarView({ user }: { user: User }) {
         </div>
         <div className="summary">
           <span>{inWeek.filter((s) => s.status !== 'cancelled' && s.status !== 'rescheduled').length} sessions</span>
-          <span className={unassigned ? 'warn' : ''}>{unassigned} need a crew</span>
-          <span className={issues ? 'bad' : ''}>{issues} rule issues</span>
+          <span className={unassigned ? 'warn' : ''}>{unassigned} need{unassigned === 1 ? 's' : ''} a crew</span>
+          <span className={issues ? 'bad' : ''}>{issues} rule issue{issues === 1 ? '' : 's'}</span>
         </div>
       </div>
 

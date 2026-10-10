@@ -3,6 +3,20 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v1.0.0 (2026-10-10 19:30 ET): first public release
+
+- Public README: live demo link, two-minute walkthrough, feature table, screenshots,
+  and how it was built by directing AI coding agents.
+- GitHub Actions: type-check, lint and tests must pass before every deploy to GitHub Pages.
+- `npm run screenshots` regenerates the README images from a running preview.
+- Disabled buttons are clearly grey; shorter per-date reasons in the coverage panel
+  ("Needs 4 coaches, 3 free"); readable override names in session history.
+- Demo generator: reschedule example tries nearby weekdays, and a new test checks the
+  demo data for every 5th day of the coming year (134 tests total).
+- MIT license.
+
+Restore this if: you want the first version that was live on GitHub Pages.
+
 ## v0.2.0 (2026-10-10 19:40 ET): all four role views
 
 - Demo login picker; hash routes so every screen has a shareable link.
