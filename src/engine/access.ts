@@ -1,0 +1,65 @@
+// Role-based access. Every screen reads data through these functions, so a
+// territory manager in Knoxville never receives Louisville's records at all.
+
+import type { Coach, Intake, Session, User } from './types'
+
+export function canSeeTerritory(user: User, territoryId: string): boolean {
+  if (user.role === 'ops_admin') return true
+  if (user.role === 'coach') return false // coaches see their own shifts, not a territory calendar
+  return user.territoryIds.includes(territoryId)
+}
+
+/** Only management sees pay rates and contract money. */
+export function canSeeMoney(user: User): boolean {
+  return user.role === 'ops_admin' || user.role === 'territory_manager'
+}
+
+export function canAssign(user: User, territoryId: string): boolean {
+  return (user.role === 'ops_admin' || user.role === 'territory_manager') && canSeeTerritory(user, territoryId)
+}
+
+/** Managers can override 'override'-severity rules. Nobody can override a 'block'. */
+export const canOverride = canAssign
+
+export function canChangeSettings(user: User): boolean {
+  return user.role === 'ops_admin'
+}
+
+export function canSubmitIntake(user: User, territoryId: string): boolean {
+  return user.role !== 'coach' && canSeeTerritory(user, territoryId)
+}
+
+export function visibleSessions(user: User, sessions: Session[]): Session[] {
+  if (user.role === 'coach') {
+    return sessions.filter((s) => s.assignments.some((a) => a.coachId === user.coachId))
+  }
+  if (user.role === 'sales_rep') return [] // sales works the intake pipeline, not the calendar
+  return sessions.filter((s) => canSeeTerritory(user, s.territoryId))
+}
+
+export function visibleIntakes(user: User, intakes: Intake[]): Intake[] {
+  if (user.role === 'sales_rep') return intakes.filter((i) => i.salesRepId === user.id)
+  if (user.role === 'coach') return []
+  return intakes.filter((i) => canSeeTerritory(user, i.territoryId))
+}
+
+/** A rep may follow the status of sessions their own intake created, nothing else. */
+export function intakeSessions(user: User, intake: Intake, sessions: Session[]): Session[] {
+  if (!visibleIntakes(user, [intake]).length) return []
+  return sessions.filter((s) => s.intakeId === intake.id)
+}
+
+/** Pay rate is removed, not hidden, for anyone outside management. */
+export type PublicCoach = Omit<Coach, 'payRate'> & { payRate?: number }
+
+export function visibleRoster(user: User, coaches: Coach[]): PublicCoach[] {
+  if (user.role === 'coach') {
+    const me = coaches.find((c) => c.id === user.coachId)
+    // Territory directory: active peers' names and phones only.
+    return coaches
+      .filter((c) => me && c.territoryId === me.territoryId && c.active)
+      .map(({ payRate: _pay, ...rest }) => rest)
+  }
+  const inScope = coaches.filter((c) => canSeeTerritory(user, c.territoryId))
+  return canSeeMoney(user) ? inScope : inScope.map(({ payRate: _pay, ...rest }) => rest)
+}
