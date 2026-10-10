@@ -193,6 +193,8 @@ export interface Violation {
   /** Plain-language specifics: who, which session, by how many minutes. */
   detail: string
   coachId?: string
+  /** For overlap/travel: the other session involved. */
+  otherSessionId?: string
 }
 
 export interface World {

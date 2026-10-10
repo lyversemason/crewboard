@@ -49,6 +49,12 @@ export function mondayOf(date: string): string {
   return addDays(date, d === 0 ? -6 : 1 - d)
 }
 
+/** The week a scheduler cares about: this week, or next week once it's the weekend. */
+export function planningWeek(today: string): string {
+  const d = dayOfWeek(today)
+  return d === 0 || d === 6 ? addDays(mondayOf(today), 7) : mondayOf(today)
+}
+
 export function todayLocal(now = new Date()): string {
   const y = now.getFullYear()
   const m = String(now.getMonth() + 1).padStart(2, '0')

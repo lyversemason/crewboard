@@ -3,6 +3,28 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v0.2.0 (2026-10-10 19:40 ET): all four role views
+
+- Demo login picker; hash routes so every screen has a shareable link.
+- Fictional demo company generated fresh each week, staffed by the real rules engine,
+  with planted cases: a travel override, a ratio override, a reschedule, a cancellation,
+  a coach availability conflict, and a new sales intake waiting for a crew.
+- Territory manager: week calendar (days visually separated), table with date range,
+  status and "only problems" filters, session panel with live rule checks per coach,
+  override dialog with the exact warnings, reschedule (keeps original) and cancel
+  (reason code), full history log, roster with availability editor.
+- Sales rep: full intake form (facility, contact, cadence and groups, space, weather
+  backup), address standardizing, live coverage check per date, locked Submit,
+  suggested open slots; "My submissions" status view without coach names or money.
+- Coach phone view: my shifts by day, confirm one or the whole week, shift package with
+  tap-to-map, tap-to-call/text, shift-mates; territory directory; weekly availability.
+- Ops admin: per-territory dashboard, open rule issues list, global buffer and drive
+  speed settings; sales pipeline with management-only program terms and margin per session.
+- On weekends the default week is the coming week.
+- 61 tests (engine, store actions, demo data is fictional and valid).
+
+Restore this if: you want the full app before the public README/deploy work.
+
 ## v0.1.0 (2026-10-10 19:05 ET): rules engine
 
 - Data model for territories, centers, coaches, sessions, intakes and settings.

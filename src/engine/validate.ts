@@ -3,7 +3,7 @@
 // sales intake coverage check both call this same code.
 
 import { transitMinutes } from './geo'
-import { overlaps, toMinutes, weekdayOf } from './time'
+import { overlaps, prettyTime, toMinutes, weekdayOf } from './time'
 import type { Center, Coach, Session, Settings, Violation, World } from './types'
 
 export const OVERRIDE_PREFIX = 'Are you sure you want to override this constraint?'
@@ -101,8 +101,9 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
         code: 'overlap',
         severity: 'block',
         message: `${coach.name} is already booked at that time.`,
-        detail: `Overlaps ${otherName}, ${other.start}-${other.end}.`,
+        detail: `Overlaps ${otherName}, ${prettyTime(other.start)}-${prettyTime(other.end)}.`,
         coachId: coach.id,
+        otherSessionId: other.id,
       })
       continue
     }
@@ -116,8 +117,9 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
         code: 'travel',
         severity: 'override',
         message: WARNINGS.travel,
-        detail: `${coach.name}: ${gap} min between ${otherName} (${other.start}-${other.end}) and this session; needs ${needed} (${drive} drive + ${settings.bufferMinutes} buffer).`,
+        detail: `${coach.name}: ${gap} min between ${otherName} (${prettyTime(other.start)}-${prettyTime(other.end)}) and this session; needs ${needed} (${drive} drive + ${settings.bufferMinutes} buffer).`,
         coachId: coach.id,
+        otherSessionId: other.id,
       })
     }
   }
@@ -127,7 +129,7 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
       code: 'unavailable',
       severity: 'override',
       message: WARNINGS.unavailable,
-      detail: `${coach.name} is not marked available ${slot.start}-${slot.end} on that weekday.`,
+      detail: `${coach.name} is not marked available ${prettyTime(slot.start)}-${prettyTime(slot.end)} on that weekday.`,
       coachId: coach.id,
     })
   }
@@ -195,6 +197,21 @@ export function currentIssues(session: Session, world: World): Violation[] {
     session.assignments.map((a) => a.coachId),
     world,
   )
+}
+
+/**
+ * Issues a manager still needs to look at: current issues minus the ones
+ * already overridden. A travel override on either of the two sessions
+ * involved covers that pair.
+ */
+export function openIssues(session: Session, world: World): Violation[] {
+  const overridden = (s: Session | undefined, code: string) => !!s?.overrides.some((o) => o.code === code)
+  return currentIssues(session, world).filter((v) => {
+    if (v.severity === 'block') return true
+    if (overridden(session, v.code)) return false
+    if (v.code === 'travel' && overridden(world.sessions.find((s) => s.id === v.otherSessionId), 'travel')) return false
+    return true
+  })
 }
 
 export type { Slot }

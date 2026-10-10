@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WARNINGS, hasBlock, transitMinutes, validateCrew } from '../src/engine'
+import { WARNINGS, hasBlock, openIssues, transitMinutes, validateCrew } from '../src/engine'
 import { centerA, centerB, coach, crew, session, world } from './fixtures'
 
 const codes = (vs: { code: string }[]) => vs.map((v) => v.code).sort()
@@ -165,5 +165,26 @@ describe('V. manager override warnings', () => {
     expect(WARNINGS.no_lead).toBe(
       'Are you sure you want to override this constraint? Warning: No certified Lead Coach is assigned to this session block.',
     )
+  })
+})
+
+describe('open issues (what still needs a manager)', () => {
+  it('hides issues that were overridden on the session', () => {
+    const s = session('s', { assignments: crew('lead1'), groups: [{ players: 14, ageRange: '5', minutes: 60 }], overrides: [{ code: 'ratio', message: WARNINGS.ratio, by: 'tm', at: '' }] })
+    expect(openIssues(s, world({ sessions: [s] }))).toEqual([])
+  })
+
+  it('a travel override on either session covers the pair', () => {
+    const a = session('a', { start: '09:00', end: '10:00', assignments: crew('lead1') })
+    const b = session('b', { centerId: 'B', start: '10:30', end: '11:30', assignments: crew('lead1'), overrides: [{ code: 'travel', message: WARNINGS.travel, by: 'tm', at: '' }] })
+    const w = world({ sessions: [a, b] })
+    expect(openIssues(a, w)).toEqual([])
+    expect(openIssues(b, w)).toEqual([])
+  })
+
+  it('never hides a hard block', () => {
+    const a = session('a', { assignments: crew('lead1') })
+    const b = session('b', { start: '10:30', end: '11:30', assignments: crew('lead1'), overrides: [{ code: 'overlap', message: '', by: 'tm', at: '' }] })
+    expect(openIssues(b, world({ sessions: [a, b] })).map((v) => v.code)).toEqual(['overlap'])
   })
 })
