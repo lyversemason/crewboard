@@ -3,6 +3,16 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.0.1 (2026-10-10 23:05 ET): more color, less white
+
+- More gray-blue: a blue header bar, blue-gray tabs, column headers, day headers, card
+  and section accents.
+- Gray added for shading: alternating table rows and calendar days, shaded day labels
+  on the coach's phone.
+- No pure or near-white anywhere: page, cards, panels and fields are all very light grays.
+
+Restore this if: the screens feel too dark or busy (v2.0.0 was lighter).
+
 ## v2.0.0 (2026-10-10 22:40 ET): SoccerSessions, after a full review
 
 Renamed from Crewboard to **SoccerSessions** (new link: lyversemason.github.io/soccer-sessions).
