@@ -160,8 +160,11 @@ export function checkCrewShape(crew: Coach[], slot: Pick<Slot, 'groups'>, settin
     out.push({
       code: 'ratio_max',
       severity: 'block',
-      message: `A group of ${kids} is more than ${settings.maxOverrideRatio} children per coach, even with an override.`,
-      detail: `Needs at least ${floor} counted coaches; has ${counted}. Trainees don't count.`,
+      message:
+        counted === 0
+          ? `No coach here counts toward the 1:${settings.ratio} ratio. Trainees are extra hands, so this group of ${kids} needs a lead or assistant.`
+          : `A group of ${kids} with ${counted} counted coach${counted > 1 ? 'es' : ''} is over ${settings.maxOverrideRatio} children per coach, even with an override.`,
+      detail: `Needs at least ${floor} counted coach${floor > 1 ? 'es' : ''}; has ${counted}. Trainees don't count toward the ratio.`,
     })
   } else if (counted < needed) {
     out.push({

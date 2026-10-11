@@ -117,6 +117,14 @@ describe('IV. 1:12 ratio, second coach at 13, override cap of 18', () => {
     expect(hasBlock(vs)).toBe(true)
   })
 
+  it('a trainee alone is blocked with a message about trainees, not "over 18 per coach"', () => {
+    const vs = validateCrew(sized(12), ['trainee1'], world())
+    const ratio = vs.find((v) => v.code === 'ratio_max')!
+    expect(ratio.severity).toBe('block')
+    expect(ratio.message).toContain('Trainees are extra hands')
+    expect(ratio.message).not.toContain('18 children')
+  })
+
   it('uses the largest group when several groups turn over', () => {
     const s = session('s', {
       groups: [

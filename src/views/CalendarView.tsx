@@ -2,7 +2,7 @@ import { addDays, planningWeek, openIssues, prettyTime, WEEKDAY_LONG } from '../
 import type { User } from '../engine'
 import { setParams } from '../router'
 import { worldOf } from '../store'
-import { crewSummary, kids } from '../ui/format'
+import { crewSummary, kids, movedTo } from '../ui/format'
 import { openSession, useScope } from './scope'
 import { TerritoryPicker } from './TerritoryPicker'
 
@@ -70,7 +70,7 @@ export function CalendarView({ user }: { user: User }) {
                     <span className={`event-crew ${!s.assignments.length && !closed ? 'none' : ''}`}>{crewSummary(s, state.coaches)}</span>
                     <span className="event-flags">
                       {s.status === 'pending' && <span className="flag pending">Pending</span>}
-                      {s.status === 'rescheduled' && <span className="flag muted">Moved → {s.rescheduledDate?.slice(5)}</span>}
+                      {s.status === 'rescheduled' && <span className="flag muted">Moved → {movedTo(s, state.sessions)}</span>}
                       {s.status === 'cancelled' && <span className="flag muted">Cancelled</span>}
                       {open.length > 0 && <span className="flag bad">⚠ {open.length}</span>}
                       {s.overrides.length > 0 && !closed && <span className="flag override">Override</span>}

@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CANCEL_REASONS, LifecycleError, canAssign, canSeeMoney, isWorkday, largestGroup, prettyDate, prettyTime, validateCrew } from '../engine'
 import type { CancelReason, Session, User, Violation } from '../engine'
 import { setParams, useRoute } from '../router'
 import { cancel, confirmWithFacility, reschedule, saveCrew, useStore, worldOf } from '../store'
 import { IssueList, LevelTag, Modal, Phone, StatusPill } from '../ui/bits'
-import { mapHref, money } from '../ui/format'
+import { mapHref, money, movedTo } from '../ui/format'
 
 export function SessionPanel({ user, sessionId }: { user: User; sessionId: string }) {
   const state = useStore()
@@ -45,6 +45,17 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
   const [confirming, setConfirming] = useState<Violation[] | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(''), 5000)
+    return () => clearTimeout(t)
+  }, [notice])
+  // Any change to the crew makes an earlier "saved" message untrue.
+  const edit = (next: string[]) => {
+    setNotice('')
+    setError('')
+    setDraft(next)
+  }
 
   const violations = useMemo(() => (draft.length ? validateCrew(s, draft, world) : []), [draft, s, world])
   const dirty = draft.join() !== s.assignments.map((a) => a.coachId).join()
@@ -99,7 +110,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
 
       {s.status === 'rescheduled' && (
         <div className="callout">
-          Rescheduled to <strong>{s.rescheduledDate}</strong>. This record is kept for the audit trail.{' '}
+          Rescheduled to <strong>{movedTo(s, state.sessions, true)}</strong>. This record is kept for the audit trail.{' '}
           {linked(s.rescheduledToId) && (
             <button className="linklike" onClick={() => setParams(route, { s: s.rescheduledToId })}>
               Open the new session →
@@ -194,7 +205,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
                 <span className="muted">{a ? (a.confirmedByCoach ? 'Coach confirmed ✓' : 'Waiting for coach') : 'New'}</span>
                 <Phone phone={c.phone} />
                 {editable && (
-                  <button className="icon-btn" onClick={() => setDraft(draft.filter((x) => x !== id))} aria-label={`Remove ${c.name}`}>
+                  <button className="icon-btn" onClick={() => edit(draft.filter((x) => x !== id))} aria-label={`Remove ${c.name}`}>
                     ×
                   </button>
                 )}
@@ -207,7 +218,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
             <select
               value=""
               onChange={(e) => {
-                if (e.target.value) setDraft([...draft, e.target.value])
+                if (e.target.value) edit([...draft, e.target.value])
               }}
               aria-label="Add a coach"
             >
@@ -231,7 +242,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
               Save crew
             </button>
             {dirty && (
-              <button className="btn ghost" onClick={() => setDraft(s.assignments.map((a) => a.coachId))}>
+              <button className="btn ghost" onClick={() => edit(s.assignments.map((a) => a.coachId))}>
                 Undo changes
               </button>
             )}

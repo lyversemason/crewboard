@@ -78,6 +78,11 @@ export function prettyTime(hhmm: string): string {
   return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`
 }
 
+/** "Mon Oct 12, 11:30am–12:15pm" */
+export function slotLabel(date: string, start: string, end: string): string {
+  return `${prettyDate(date)}, ${prettyTime(start)}–${prettyTime(end)}`
+}
+
 export function prettyDate(date: string): string {
   const d = parse(date)
   return `${WEEKDAY_NAMES[d.getUTCDay()]} ${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} ${d.getUTCDate()}`

@@ -88,7 +88,11 @@ export function resetDemo() {
 }
 
 const now = () => new Date().toISOString()
-const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+/** Next id in the same style as the demo data: s144, s145, … */
+function idMaker(prefix: string, existing: { id: string }[]) {
+  let n = Math.max(0, ...existing.map((x) => Number(x.id.match(new RegExp(`^${prefix}(\\d+)$`))?.[1] ?? 0)))
+  return () => `${prefix}${++n}`
+}
 
 function replaceSessions(updated: Session[], added: Session[] = []) {
   const byId = new Map(updated.map((s) => [s.id, s]))
@@ -149,7 +153,7 @@ export function confirmWithFacility(user: User, id: string) {
 export function reschedule(user: User, id: string, newDate: string, newStart: string, newEnd: string): string {
   const s = findSession(id)
   requireManager(user, s)
-  const [old, moved] = rescheduleSession(s, { newDate, newStart, newEnd, newId: newId('s'), by: user.name, at: now() })
+  const [old, moved] = rescheduleSession(s, { newDate, newStart, newEnd, newId: idMaker('s', state.sessions)(), by: user.name, at: now() })
   replaceSessions([old], [moved])
   return moved.id
 }
@@ -209,10 +213,11 @@ export function submitIntake(user: User, input: IntakeInput): string {
   if (!coverage.ok) throw new LifecycleError(coverage.reason ?? 'The roster cannot cover this slot.')
 
   const at = now()
-  const centerId = newId('c')
-  const intakeId = newId('i')
+  const centerId = idMaker('c', state.centers)()
+  const intakeId = idMaker('i', state.intakes)()
+  const nextSession = idMaker('s', state.sessions)
   const sessions: Session[] = input.dates.map((date) => ({
-    id: newId('s'),
+    id: nextSession(),
     territoryId: input.center.territoryId,
     centerId,
     date,

@@ -6,7 +6,7 @@ import type { Session, User, Weekday } from '../engine'
 import { href, setParams, useRoute } from '../router'
 import { coachConfirmMany, setAvailability, useStore } from '../store'
 import { Empty, LevelTag, Phone } from '../ui/bits'
-import { mapHref } from '../ui/format'
+import { mapHref, movedTo } from '../ui/format'
 import { AvailabilityGrid } from './AvailabilityGrid'
 
 export function CoachApp({ user, view, nav }: { user: User; view: string; nav: { view: string; label: string }[] }) {
@@ -139,7 +139,7 @@ function ShiftPackage({ user, id }: { user: User; id: string }) {
       <p className="big-when">
         {prettyDate(s.date)} · {prettyTime(s.start)}–{prettyTime(s.end)}
       </p>
-      {!live(s) && <p className="callout">{s.status === 'cancelled' ? 'This session was cancelled.' : `This session moved to ${s.rescheduledDate}.`}</p>}
+      {!live(s) && <p className="callout">{s.status === 'cancelled' ? 'This session was cancelled.' : `This session moved to ${movedTo(s, state.sessions, true)}.`}</p>}
 
       <a className="tap-row" href={mapHref(center.address)} target="_blank" rel="noreferrer">
         <span>📍</span>

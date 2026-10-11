@@ -26,6 +26,9 @@ describe('session lifecycle', () => {
     expect(moved.rescheduledFromId).toBe('s')
     expect(moved.date).toBe('2026-10-14')
     expect(moved.status).toBe('confirmed')
+    // History reads like a person wrote it.
+    expect(old.history.at(-1)?.text).toBe('Rescheduled to Wed Oct 14, 10am–11am')
+    expect(moved.history[0].text).toMatch(/^Moved here from \w{3} \w{3} \d+, /)
     // Coaches have to re-confirm the new date.
     expect(moved.assignments).toEqual([{ coachId: 'lead1', confirmedByCoach: false }])
   })

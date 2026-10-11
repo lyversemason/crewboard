@@ -73,7 +73,7 @@ use. This rebuild took one evening.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. Managers' assignment screen and the
    sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 134 automated tests cover the edge cases that matter in
+3. **Tests for every rule.** 137 automated tests cover the edge cases that matter in
    the field: a gap exactly equal to drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
    override, trainees don't count toward the ratio, nothing can be deleted, and a sales
@@ -113,7 +113,7 @@ a shared database, a routing API for drive times and an address-verification API
 
 ```bash
 npm install
-npm test          # 134 tests
+npm test          # 137 tests
 npm run dev       # http://localhost:5173
 npm run check     # type-check + lint + tests
 ```

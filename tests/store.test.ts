@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LifecycleError, hasBlock, openIssues, validateCrew, weeklyDates } from '../src/engine'
-import { getState, resetDemo, saveCrew, submitIntake, worldOf } from '../src/store'
+import { getState, reschedule, resetDemo, saveCrew, submitIntake, worldOf } from '../src/store'
 import type { IntakeInput } from '../src/store'
 
 const user = (id: string) => getState().users.find((u) => u.id === id)!
@@ -99,6 +99,20 @@ describe('demo data', () => {
       expect(c.phone).toMatch(/^\d{3}-555-01\d{2}$/)
       expect(c.poc.email).toMatch(/example\.com$/)
     }
+  })
+
+  it('never gives a facility contact the same name as a coach', () => {
+    const { coaches, centers } = getState()
+    const coachNames = new Set(coaches.map((c) => c.name))
+    expect(centers.filter((c) => coachNames.has(c.poc.name))).toEqual([])
+  })
+
+  it('numbers a rescheduled session like the others (s145, not a random string)', () => {
+    const st = getState()
+    const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
+    const before = Math.max(...st.sessions.map((x) => Number(x.id.slice(1)) || 0))
+    const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
+    expect(id).toBe(`s${before + 1}`)
   })
 
   it('has something to show on every screen', () => {

@@ -3,6 +3,20 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v1.0.1 (2026-10-10 21:40 ET): fixes from the first review
+
+- A "Crew saved." or "Confirmed with the facility." message disappears as soon as the
+  crew is changed (it no longer says "saved" over unsaved changes) and fades after 5 seconds.
+- A trainee alone now explains that trainees don't count toward the 1:12 ratio, instead
+  of the misleading "a group of 12 is more than 18 children per coach".
+- Rescheduled sessions get the next normal number (s145), not a random string.
+- Reschedules read like a person wrote them everywhere: "Moved → Mon Oct 12, 11:30am" on
+  the calendar, "Rescheduled to Mon Oct 12, 11:30am–12:15pm" in history and the coach view.
+- Facility contacts get their own names, so a director is never named like a coach.
+- 137 tests.
+
+Restore this if: any of these messages reads worse than before (v1.0.0).
+
 ## v1.0.0 (2026-10-10 19:30 ET): first public release
 
 - Public README: live demo link, two-minute walkthrough, feature table, screenshots,

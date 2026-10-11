@@ -1,6 +1,14 @@
 // Plain formatting helpers shared by the screens.
 
+import { prettyDate, prettyTime, slotLabel } from '../engine'
 import type { Coach, CoachLevel, Role, Session, SessionStatus, Violation } from '../engine'
+
+/** Where a rescheduled session went: "Mon Oct 12, 11:30am" (or the full slot). */
+export function movedTo(s: Session, sessions: Session[], full = false): string {
+  const to = sessions.find((x) => x.id === s.rescheduledToId)
+  if (!to) return s.rescheduledDate ? prettyDate(s.rescheduledDate) : ''
+  return full ? slotLabel(to.date, to.start, to.end) : `${prettyDate(to.date)}, ${prettyTime(to.start)}`
+}
 
 export const LEVEL_LABEL: Record<CoachLevel, string> = { lead: 'Lead', assistant: 'Assistant', trainee: 'In training' }
 export const STATUS_LABEL: Record<SessionStatus, string> = {

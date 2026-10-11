@@ -2,6 +2,7 @@
 // There is deliberately no delete. Rescheduling keeps the original record and
 // creates a linked new one; cancelling keeps the record with a reason code.
 
+import { slotLabel } from './time'
 import { CANCEL_REASONS } from './types'
 import type { CancelReason, Session } from './types'
 
@@ -44,7 +45,7 @@ export function rescheduleSession(s: Session, input: RescheduleInput): [Session,
     status: 'rescheduled',
     rescheduledDate: input.newDate,
     rescheduledToId: input.newId,
-    history: log(s, input.by, input.at, `Rescheduled to ${input.newDate} ${start}-${end}`),
+    history: log(s, input.by, input.at, `Rescheduled to ${slotLabel(input.newDate, start, end)}`),
   }
   const moved: Session = {
     ...s,
@@ -58,7 +59,7 @@ export function rescheduleSession(s: Session, input: RescheduleInput): [Session,
     rescheduledFromId: s.id,
     assignments: s.assignments.map((a) => ({ coachId: a.coachId, confirmedByCoach: false })),
     overrides: [],
-    history: [{ at: input.at, by: input.by, text: `Created by rescheduling ${s.date} ${s.start}-${s.end}` }],
+    history: [{ at: input.at, by: input.by, text: `Moved here from ${slotLabel(s.date, s.start, s.end)}` }],
   }
   return [old, moved]
 }

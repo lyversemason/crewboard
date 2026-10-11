@@ -14,6 +14,7 @@ import {
   mondayOf,
   pickCrew,
   planningWeek,
+  slotLabel,
   toMinutes,
   transitMinutes,
   validateCrew,
@@ -73,6 +74,9 @@ const CENTER_NAMES: Record<string, string[]> = {
 const STREETS = ['Maple Ridge Dr', 'Orchard Ave', 'Linden St', 'Willow Bend Rd', 'Cardinal Way', 'Briar Ln', 'Juniper Ct', 'Sycamore Blvd', 'Hawthorne Pl', 'Aspen Trail']
 
 const FIRST = ['Jordan', 'Riley', 'Avery', 'Casey', 'Morgan', 'Quinn', 'Rowan', 'Skyler', 'Emerson', 'Hayden', 'Parker', 'Reese', 'Sawyer', 'Finley', 'Dakota', 'Kendall', 'Logan', 'Marley', 'Peyton', 'Blake', 'Cameron', 'Drew', 'Elliot', 'Frankie', 'Gray', 'Harper', 'Indy', 'Jules', 'Kai', 'Lennox', 'Micah', 'Noel', 'Oakes', 'Remy', 'Sage', 'Tatum']
+// Facility contacts get their own names so they're never mistaken for a coach.
+const CONTACT_FIRST = ['Robin', 'Leslie', 'Dana', 'Terry', 'Shannon', 'Jamie', 'Kerry', 'Lindsay', 'Merritt', 'Shelby', 'Courtney', 'Whitney']
+const CONTACT_LAST = ['Sutter', 'Halvorsen', 'Pruitt', 'Castellano', 'Mabry', 'Okafor', 'Delacroix', 'Rennick', 'Satterfield', 'Ambrose', 'Lindqvist', 'Bancroft']
 const LAST = ['Abernathy', 'Bellweather', 'Calloway', 'Dunmore', 'Ellsworth', 'Fairbanks', 'Galloway', 'Hollins', 'Ingram', 'Jessup', 'Kincaid', 'Lockhart', 'Merriweather', 'Northcutt', 'Oakley', 'Pemberton', 'Quarles', 'Ravenscroft', 'Stanhope', 'Thistlewood', 'Underhill', 'Vance', 'Whitlock', 'Yardley', 'Ashgrove', 'Brightwater', 'Coldwell', 'Dovecote', 'Everly', 'Foxworth']
 
 const LEVELS: CoachLevel[] = ['lead', 'lead', 'lead', 'lead', 'lead', 'assistant', 'assistant', 'assistant', 'assistant', 'trainee', 'trainee', 'trainee']
@@ -178,7 +182,7 @@ export function buildDemo(today: string): DemoData {
         lat: +(z.lat + (r() - 0.5) * 0.01).toFixed(5),
         lng: +(z.lng + (r() - 0.5) * 0.01).toFixed(5),
         poc: {
-          name: `${pick(FIRST)} ${pick(LAST)}`,
+          name: `${pick(CONTACT_FIRST)} ${pick(CONTACT_LAST)}`,
           title: pick(['Center Director', 'Assistant Director', 'Program Coordinator', 'Owner']),
           email: `director@${slug(name)}.example.com`,
           phone: phone(areaCode, 40 + i),
@@ -389,7 +393,7 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
       rescheduledFromId: toMove.id,
       assignments: toMove.assignments.map((a) => ({ coachId: a.coachId, confirmedByCoach: false })),
       overrides: [],
-      history: [{ at, by: 'Priya Raman', text: `Created by rescheduling ${toMove.date} ${toMove.start}-${toMove.end}` }],
+      history: [{ at, by: 'Priya Raman', text: `Moved here from ${slotLabel(toMove.date, toMove.start, toMove.end)}` }],
     }
     if (validateCrew(moved, moved.assignments.map((a) => a.coachId), world).length) continue
     moved.id = newId()
@@ -397,7 +401,7 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
       status: 'rescheduled',
       rescheduledDate: newDate,
       rescheduledToId: moved.id,
-      history: [...toMove.history, { at, by: 'Priya Raman', text: `Rescheduled to ${newDate} ${toMove.start}-${toMove.end} (center picture day)` }],
+      history: [...toMove.history, { at, by: 'Priya Raman', text: `Rescheduled to ${slotLabel(newDate, toMove.start, toMove.end)} (center picture day)` }],
     })
     world.sessions.push(moved)
     break moving
