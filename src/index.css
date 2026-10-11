@@ -18,10 +18,10 @@
   --brand-ink: #f3f6f8;
   --brand-soft: #c8d6e2;
   --focus-soft: #d5e3ef;
-  --tan: #c4ab8e;
-  --tan-soft: #e7dccd;
-  --tan-2: #e7dccd;
-  --tan-ink: #574323;
+  --tan: #ccbdaa;
+  --tan-soft: #e9e1d6;
+  --tan-2: #e9e1d6;
+  --tan-ink: #5a4a3a;
   --pending: #685200;
   --pending-soft: #f0de8e;
   --pending-line: #cfae22;
@@ -494,9 +494,9 @@ table.mini th { background: var(--surface-2); }
 .bottom-nav a { color: var(--brand-strong); opacity: 0.75; }
 .bottom-nav a.active { opacity: 1; color: var(--brand-strong); box-shadow: inset 0 3px 0 var(--brand-strong); }
 .seg { background: var(--field); }
-.slot { background: var(--tan-soft); border-color: #cfbca4; }
+.slot { background: #e7dccd; border-color: #cfbca4; }
 .slot.on { background: var(--brand); border-color: var(--brand); }
-.avail.mini i { background: var(--tan-2); }
+.avail.mini i { background: #dccdb8; }
 .avail.mini i.on { background: var(--brand); }
 .chip { background: var(--brand-soft); color: var(--brand-strong); }
 
@@ -561,14 +561,6 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
 .timeoff-list li:nth-child(even) { background: var(--row-b); }
 
 /* ---- v2.2 ---- */
-/* Tan candidates for the section labels: one per section, the user picks one. */
-.intake-form .tan-a legend { background: #e7dccd; border-color: #c9b59b; color: #5a4632; } /* A: soft sand */
-.intake-form .tan-b legend { background: #e3d5c5; border-color: #c2a88e; color: #574230; } /* B: latte */
-.intake-form .tan-c legend { background: #ece4da; border-color: #d0c1ad; color: #5c4a37; } /* C: oat (lightest) */
-.intake-form .tan-d legend { background: #e0d1bf; border-color: #bda386; color: #54402c; } /* D: light camel */
-.intake-form .tan-e legend { background: #e9e1d6; border-color: #ccbdaa; color: #5a4a3a; } /* E: greige */
-.intake-form .tan-f legend { background: #e6d7c8; border-color: #c7ac94; color: #594333; } /* F: warm biscuit */
-
 /* Bulk staffing in the session panel */
 .bulk { margin-top: 0.9em; padding: 0.75em 0.9em; background: var(--brand-soft); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 8px; }
 .bulk p { margin: 0 0 0.4em; }
@@ -578,7 +570,18 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
 .pipeline-actions { margin: 0.4em 0; }
 
 /* Coach directory rows alternate like the Coaching Staff table */
-.directory li { padding-left: 0.5em; padding-right: 0.4em; border-bottom: 0; }
+.directory li { padding-left: 0.5em; padding-right: 0.4em; border-bottom: 0; flex-wrap: nowrap; align-items: center; }
+.directory li > :first-child { white-space: nowrap; }
+.phone-app { max-width: 520px; }
+/* The directory grows to fit its longest name, so no row has to wrap. */
+.phone-app:has(.directory) { width: max-content; min-width: min(520px, 100%); max-width: 100%; }
+@media (max-width: 520px) { .directory li { flex-wrap: wrap; } }
+
+/* Follow-up question after confirming one session */
+.follow-up { margin-top: 0.7em; padding: 0.6em 0.85em; background: var(--ok-soft); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 8px; }
+.follow-up p { margin: 0 0 0.3em; }
+.bulk-left li { display: flex; justify-content: space-between; align-items: center; gap: 0.75em; padding: 0.35em 0.5em; border-radius: 6px; background: var(--surface); }
+.bulk-left li span { display: flex; flex-direction: column; }
 .directory li:nth-child(odd) { background: var(--row-b); }
 
 @media (max-width: 1100px) {

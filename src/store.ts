@@ -23,8 +23,8 @@ import {
   plannedSessions,
   termsFromDays,
   mondayOf,
-  openSessionsLike,
   pendingSessionsLike,
+  planBulk,
   rescheduleSession,
   slotLabel,
   todayLocal,
@@ -191,26 +191,13 @@ export function staffOpenSessions(user: User, fromId: string, scope: BulkScope =
   if (!crewIds.length) throw new LifecycleError('Save a coaching staff on this session first.')
   const at = now()
   const names = crewIds.map(coachName).join(', ')
-  let world = worldOf(state)
-  const result: BulkResult = { filled: [], skipped: [] }
-  const updated: Session[] = []
-  for (const s of openSessionsLike(from, state.sessions, state.today, scope)) {
-    const problems = validateCrew(s, crewIds, world)
-    if (problems.length) {
-      result.skipped.push({ id: s.id, reason: problems[0].detail || problems[0].message })
-      continue
-    }
-    const next: Session = {
-      ...s,
-      assignments: crewIds.map((id) => ({ coachId: id, confirmedByCoach: false })),
-      history: [...s.history, { at, by: user.name, text: `Coaching staff set: ${names} (added to the whole program from ${slotLabel(from.date, from.start, from.end)})` }],
-    }
-    updated.push(next)
-    result.filled.push(s.id)
-    world = { ...world, sessions: world.sessions.map((x) => (x.id === s.id ? next : x)) }
-  }
+  const plan = planBulk(from, crewIds, worldOf(state), state.today, scope)
+  const updated: Session[] = plan.fillable.map((s) => ({
+    ...s,
+    history: [...s.history, { at, by: user.name, text: `Coaching staff set: ${names} (added to the whole program from ${slotLabel(from.date, from.start, from.end)})` }],
+  }))
   if (updated.length) replaceSessions(updated)
-  return result
+  return { filled: updated.map((s) => s.id), skipped: plan.left.map((l) => ({ id: l.session.id, reason: l.reason })) }
 }
 
 /** Marks every pending upcoming session of a program as confirmed with the facility. */

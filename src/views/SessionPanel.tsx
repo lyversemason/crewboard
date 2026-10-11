@@ -16,16 +16,14 @@ import {
   sessionsInCycle,
   validateCrew,
   scheduleLabel,
-  openSessionsLike,
   pendingSessionsLike,
-  prettyDate,
+  planBulk,
   programWeekdays,
   WEEKDAY_LONG,
 } from '../engine'
 import type { BulkScope, CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
 import { cancel, confirmProgramWithFacility, confirmWithFacility, reschedule, saveCrew, staffOpenSessions, useStore, worldOf } from '../store'
-import type { BulkResult } from '../store'
 import { Hint, IssueList, LevelTag, Modal, Phone, StatusPill, Toast, UnconfirmedAlert } from '../ui/bits'
 import { mapHref, money, movedTo } from '../ui/format'
 
@@ -454,7 +452,8 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
   const route = useRoute()
   const state = useStore()
   const pendingOthers = pendingSessionsLike(s, state.sessions, state.today).length
-  const pendingAll = pendingOthers + (s.status === 'pending' ? 1 : 0)
+  // After confirming this one, offer (never force) the rest of the program.
+  const [askRest, setAskRest] = useState(false)
   const [mode, setMode] = useState<'' | 'reschedule' | 'cancel'>('')
   const [date, setDate] = useState('')
   const [start, setStart] = useState(s.start)
@@ -467,13 +466,16 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
       <h3>Status</h3>
       <div className="actions">
         {s.status === 'pending' && (
-          <button className="btn" onClick={() => run(() => confirmWithFacility(user, s.id), 'Confirmed with the facility.')}>
+          <button
+            className="btn"
+            onClick={() =>
+              run(() => {
+                confirmWithFacility(user, s.id)
+                setAskRest(pendingOthers > 0)
+              }, 'Confirmed with the facility.')
+            }
+          >
             Mark confirmed with facility
-          </button>
-        )}
-        {pendingOthers > 0 && (
-          <button className="btn" onClick={() => run(() => confirmProgramWithFacility(user, s.id), `Confirmed ${pendingAll} sessions with the facility.`)}>
-            Confirm all {pendingAll} pending in this program
           </button>
         )}
         <button className={`btn ${mode === 'reschedule' ? 'on' : ''}`} onClick={() => setMode(mode === 'reschedule' ? '' : 'reschedule')}>
@@ -483,6 +485,21 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
           Cancel session…
         </button>
       </div>
+      {askRest && pendingOthers > 0 && (
+        <div className="follow-up">
+          <p>
+            ✓ This session is confirmed. Also confirm the other <strong>{pendingOthers}</strong> pending session{pendingOthers === 1 ? '' : 's'} of this program?
+          </p>
+          <div className="actions">
+            <button className="btn primary" onClick={() => run(() => (confirmProgramWithFacility(user, s.id), setAskRest(false)), `Confirmed ${pendingOthers} more with the facility.`)}>
+              Yes, confirm the other {pendingOthers}
+            </button>
+            <button className="btn ghost" onClick={() => setAskRest(false)}>
+              No, just this one
+            </button>
+          </div>
+        </div>
+      )}
       <Hint>Sessions are never deleted: a reschedule keeps the original on file and links a new session; a cancellation needs a reason code.</Hint>
 
       {mode === 'reschedule' && (
@@ -561,62 +578,68 @@ function NoteBox({ value, onChange, label, placeholder, required }: { value: str
 
 /**
  * After staffing one session: add the same coaches to every other open session
- * of the program they can work (or one weekday's). The rest stay open.
+ * of the program they can work (or one weekday's). The counts come from a dry
+ * run, so a button only appears when it will actually fill something; the
+ * dates they can't take are listed by name, each one a link to staff it alone.
  */
 function BulkStaff({ user, s, toast }: { user: User; s: Session; toast: (msg: string) => void }) {
   const state = useStore()
   const route = useRoute()
-  const [result, setResult] = useState<BulkResult | null>(null)
-  const open = openSessionsLike(s, state.sessions, state.today)
+  const world = worldOf(state)
+  const crew = s.assignments.map((a) => a.coachId)
+  const names = crew.map((id) => state.coaches.find((c) => c.id === id)?.name.split(' ')[0]).join(' & ')
+  const all = planBulk(s, crew, world, state.today)
   const days = programWeekdays(s, state.sessions, state.today)
-  const names = s.assignments.map((a) => state.coaches.find((c) => c.id === a.coachId)?.name.split(' ')[0]).join(' & ')
-  const byId = (id: string) => state.sessions.find((x) => x.id === id)!
+  const byDay = days.length > 1 ? days.map((d) => ({ d, n: planBulk(s, crew, world, state.today, d).fillable.length })).filter((x) => x.n > 0) : []
+
+  if (!all.fillable.length && !all.left.length) return null
 
   const apply = (scope: BulkScope) => {
     const r = staffOpenSessions(user, s.id, scope)
-    setResult(r)
-    toast(`Added ${names} to ${r.filled.length} session${r.filled.length === 1 ? '' : 's'}.${r.skipped.length ? ` ${r.skipped.length} left open.` : ''}`)
+    toast(`Added ${names} to ${r.filled.length} more session${r.filled.length === 1 ? '' : 's'}.`)
   }
 
-  if (!open.length && !result) return null
   return (
     <div className="bulk">
-      {open.length > 0 && (
+      {all.fillable.length > 0 && (
         <>
           <p>
-            <strong>{open.length}</strong> other session{open.length === 1 ? '' : 's'} of this program {open.length === 1 ? 'has' : 'have'} no coaching staff. Add {names} wherever they’re free:
+            {names} can also take <strong>{all.fillable.length}</strong> other open session{all.fillable.length === 1 ? '' : 's'} of this program.
           </p>
           <div className="actions">
             <button className="btn primary" onClick={() => apply('program')}>
-              All open sessions ({open.length})
+              Add {names} to all {all.fillable.length}
             </button>
-            {days.length > 1 &&
-              days.map((d) => {
-                const n = openSessionsLike(s, state.sessions, state.today, d).length
-                return (
-                  n > 0 && (
-                    <button key={d} className="btn" onClick={() => apply(d)}>
-                      {WEEKDAY_LONG[d]}s only ({n})
-                    </button>
-                  )
-                )
-              })}
+            {byDay.length > 1 &&
+              byDay.map(({ d, n }) => (
+                <button key={d} className="btn" onClick={() => apply(d)}>
+                  {WEEKDAY_LONG[d]}s only ({n})
+                </button>
+              ))}
           </div>
-          <Hint>Every session is checked with the full rules. Nothing is overridden in bulk: a session that would need an override stays open for you to decide.</Hint>
+          <Hint>Every session is checked with the full rules first. Nothing is overridden in bulk.</Hint>
         </>
       )}
-      {result && result.skipped.length > 0 && (
+      {all.left.length > 0 && (
         <div className="bulk-left">
           <p className="small">
-            <strong>Left open ({result.skipped.length}):</strong> open one, pick other coaches, and add them to the rest the same way.
+            <strong>
+              {all.left.length} open session{all.left.length === 1 ? '' : 's'} {names} can’t take.
+            </strong>{' '}
+            Open one to pick different coaches for just that date.
           </p>
           <ul>
-            {result.skipped.map(({ id, reason }) => (
-              <li key={id}>
-                <button className="linklike" onClick={() => setParams(route, { s: id })}>
-                  {prettyDate(byId(id).date)} {prettyTime(byId(id).start)}
-                </button>{' '}
-                <small className="muted">{reason}</small>
+            {all.left.map(({ session: x, reason }) => (
+              <li key={x.id}>
+                <span>
+                  <strong>
+                    {longDate(x.date)}, {prettyTime(x.start)}–{prettyTime(x.end)}
+                  </strong>
+                  <small className="muted">{reason}</small>
+                </span>
+                <button className="btn small" onClick={() => setParams(route, { s: x.id })}>
+                  Staff this date →
+                </button>
               </li>
             ))}
           </ul>

@@ -221,7 +221,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   return (
     <div className="intake">
       <form className="intake-form" onSubmit={(e) => e.preventDefault()} noValidate>
-        <fieldset className="tan-a">
+        <fieldset>
           <legend>Sales identification</legend>
           <div className="row">
             <label className="field">
@@ -241,7 +241,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           </div>
         </fieldset>
 
-        <fieldset className="tan-b">
+        <fieldset>
           <legend>Facility</legend>
           <div className="row">
             <label className="field grow">
@@ -309,7 +309,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           )}
         </fieldset>
 
-        <fieldset className="tan-c">
+        <fieldset>
           <legend>Point of contact</legend>
           <div className="row">
             <label className="field grow">
@@ -340,7 +340,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           </div>
         </fieldset>
 
-        <fieldset className="tan-d">
+        <fieldset>
           <legend>Program terms</legend>
           <div className="row">
             <label className="field">
@@ -432,7 +432,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           const setGroups = (groups: Group[]) => setDay(d.weekday, { groups })
           const setGroup = (i: number, patch: Partial<Group>) => setGroups(d.groups.map((g, j) => (i === j ? { ...g, ...patch } : g)))
           return (
-            <fieldset key={d.weekday} className="tan-e">
+            <fieldset key={d.weekday}>
               <legend>{sorted.length > 1 ? `${WEEKDAY_LONG[d.weekday]} groups` : 'Groups'}</legend>
               {di > 0 && (
                 <button type="button" className="btn ghost small same-as" onClick={() => setGroups(sorted[0].groups.map((g) => ({ ...g })))}>
@@ -488,7 +488,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           )
         })}
 
-        <fieldset className="tan-f">
+        <fieldset>
           <legend>Space</legend>
           <div className="row">
             <div className="seg" role="group" aria-label="Space category">

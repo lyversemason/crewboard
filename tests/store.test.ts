@@ -1,7 +1,7 @@
 // Store actions: the rules can't be skipped from the UI layer either.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { LifecycleError, NOTE_MAX, hasBlock, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
+import { LifecycleError, NOTE_MAX, hasBlock, planBulk, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
 import type { ProgramDay, Weekday } from '../src/engine'
 import {
   addTimeOff,
@@ -316,8 +316,13 @@ describe('bulk staffing a program', () => {
     const first = clover()[0]
     const lead = freeLead(first.id)
     expect(saveCrew(tm(), first.id, [lead.id], false)).toEqual({ ok: true })
+    // The dry run the screen shows matches what the click does.
+    const preview = planBulk(getState().sessions.find((x) => x.id === first.id)!, [lead.id], worldOf(getState()), getState().today)
     const r = staffOpenSessions(tm(), first.id)
+    expect(r.filled).toEqual(preview.fillable.map((s) => s.id))
     expect(r.filled.length + r.skipped.length).toBe(15)
+    // A second click has nothing left to fill.
+    expect(staffOpenSessions(tm(), first.id).filled).toEqual([])
     expect(r.filled.length).toBeGreaterThan(0)
     for (const id of r.filled) {
       const s = getState().sessions.find((x) => x.id === id)!

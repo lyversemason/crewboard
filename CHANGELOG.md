@@ -3,6 +3,20 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.2.1 (2026-10-11 02:30 ET): review round 6
+
+- Section labels: the user picked tan E (greige); every label, day bar and coach-phone
+  day label uses it now. The six trial tans are gone. Availability cells keep their tan.
+- Bulk staffing is clearer: the counts come from a dry run, so "Add Jordan to all N"
+  only appears when it will fill something (no more button that does nothing). Dates
+  the coaches can't take are listed with the full date, time and reason, each with a
+  "Staff this date" button to pick different coaches for just that one.
+- Mark confirmed with facility confirms only this session, then asks "Also confirm the
+  other N pending sessions of this program?" (Yes / No, just this one). The standalone
+  confirm-all button is gone from the session panel; the Sales pipeline keeps its own.
+- Coach phone: a little wider (520px), and the directory grows to fit the longest name
+  so no row wraps; on a real phone it still fits the screen.
+
 ## v2.2.0 (2026-10-11 01:45 ET): review round 5
 
 **Bulk staffing**

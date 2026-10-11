@@ -5,7 +5,8 @@
 // overrides always need a person to confirm them one session at a time.
 
 import { weekdayOf } from './time'
-import type { Session, Weekday } from './types'
+import type { Session, Weekday, World } from './types'
+import { validateCrew } from './validate'
 
 export type BulkScope = 'program' | Weekday
 
@@ -28,4 +29,31 @@ export function pendingSessionsLike(from: Session, sessions: Session[], today: s
 /** The weekdays a program's upcoming sessions fall on, for "just the Mondays" buttons. */
 export function programWeekdays(from: Session, sessions: Session[], today: string): Weekday[] {
   return [...new Set(sessions.filter((s) => s.centerId === from.centerId && live(s) && s.date >= today).map((s) => weekdayOf(s.date)))].sort((a, b) => a - b)
+}
+
+export interface BulkPlan {
+  /** Sessions these coaches can take, in order. */
+  fillable: Session[]
+  /** Sessions they can't, with the first reason in plain words. */
+  left: { session: Session; reason: string }[]
+}
+
+/**
+ * What adding `crewIds` to the open sessions would do, checked one session
+ * after another (so two sessions the same day can't both claim a coach).
+ */
+export function planBulk(from: Session, crewIds: string[], world: World, today: string, scope: BulkScope = 'program'): BulkPlan {
+  const plan: BulkPlan = { fillable: [], left: [] }
+  let w = world
+  for (const s of openSessionsLike(from, world.sessions, today, scope)) {
+    const problems = validateCrew(s, crewIds, w)
+    if (problems.length) {
+      plan.left.push({ session: s, reason: problems[0].detail || problems[0].message })
+      continue
+    }
+    const next = { ...s, assignments: crewIds.map((id) => ({ coachId: id, confirmedByCoach: false })) }
+    plan.fillable.push(next)
+    w = { ...w, sessions: w.sessions.map((x) => (x.id === s.id ? next : x)) }
+  }
+  return plan
 }
