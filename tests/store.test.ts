@@ -1,7 +1,8 @@
 // Store actions: the rules can't be skipped from the UI layer either.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { LifecycleError, hasBlock, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
+import { LifecycleError, NOTE_MAX, hasBlock, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
+import type { ProgramDay, Weekday } from '../src/engine'
 import {
   addTimeOff,
   confirmWithFacility,
@@ -69,7 +70,14 @@ describe('submitIntake', () => {
       poc: { name: 'A B', title: 'Director', email: 'a@example.com', phone: '502-555-0198' },
       space: { category: 'indoor', grade: 'flat', obstacles: [], backupIndoorSpace: true },
     },
-    terms: { startDate: addDaysFrom(st().today, 9), cycleWeeks: 2, weekdays: [weekdayOf(addDaysFrom(st().today, 9))], cycleRate: 400 },
+    cycleWeeks: 2,
+    cycleRate: 400,
+    days: [day(addDaysFrom(st().today, 9))],
+    ...over,
+  })
+  const day = (firstDate: string, over: Partial<ProgramDay> = {}): ProgramDay => ({
+    weekday: weekdayOf(firstDate),
+    firstDate,
     start: '10:00',
     end: '10:30',
     groups: [{ players: 8, ageRange: '3', minutes: 30 }],
@@ -86,7 +94,41 @@ describe('submitIntake', () => {
 
   it('re-checks coverage and refuses an unstaffable slot even if the UI were bypassed', () => {
     // 19-20h is outside everyone's availability.
-    expect(() => submitIntake(user('rep-east'), input({ start: '19:00', end: '19:30' }))).toThrow(LifecycleError)
+    // With every Louisville lead coach inactive, nobody can lead the session.
+    for (const c of st().coaches.filter((x) => x.territoryId === 'lou' && x.level === 'lead')) {
+      updateCoach(user('admin'), c.id, { level: c.level, payRate: c.payRate, phone: c.phone, email: c.email, active: false })
+    }
+    expect(() => submitIntake(user('rep-east'), input())).toThrow(/can't be staffed/)
+    expect(() => submitIntake(user('rep-east'), input({ days: [day(addDaysFrom(st().today, 9), { start: '19:00', end: '19:30' })] }))).toThrow(/9am and 6pm/)
+  })
+
+  it('lets each day start on its own date, with its own groups', () => {
+    // Day one starts next week; the second day of the week only starts the week after.
+    const first = addDaysFrom(st().today, 9)
+    const second = addDaysFrom(first, 8)
+    const id = submitIntake(
+      user('rep-east'),
+      input({ days: [day(first), day(second, { start: '11:00', end: '11:45', groups: [{ players: 11, ageRange: '4-5', minutes: 45 }] })] }),
+    )
+    const created = st().sessions.filter((s) => s.intakeId === id)
+    expect(created.length).toBe(4)
+    const later = created.filter((s) => weekdayOf(s.date) === weekdayOf(second))
+    expect(later.map((s) => s.date)[0]).toBe(second)
+    expect(later.every((s) => s.start === '11:00' && s.groups[0].players === 11)).toBe(true)
+    const terms = st().centers.find((c) => c.id === st().intakes.find((i) => i.id === id)!.centerId)!.terms!
+    expect(terms.firstDates?.[weekdayOf(second)]).toBe(second)
+  })
+
+  it('refuses a first date that isn’t on the chosen weekday', () => {
+    const date = addDaysFrom(st().today, 9)
+    const wrongDay = (weekdayOf(date) % 6) + 1
+    expect(() => submitIntake(user('rep-east'), input({ days: [day(date, { weekday: wrongDay as Weekday })] }))).toThrow(/is a .*day\. Pick a/)
+  })
+
+  it('refuses a misspelled contact email', () => {
+    const bad = input()
+    bad.center.poc.email = 'candyqueen@gmail.con'
+    expect(() => submitIntake(user('rep-east'), bad)).toThrow(/valid contact email/)
   })
 
   it('refuses a rep outside the territory', () => {
@@ -153,30 +195,34 @@ describe('editing a submission (sales)', () => {
     const st = getState()
     const center = st.centers.find((c) => c.id === clover().centerId)!
     const { id: _id, terms, history: _h, ...rest } = center
-    return { center: rest, terms: terms!, ...clover().schedule, ...over }
+    return { center: rest, cycleWeeks: terms!.cycleWeeks, cycleRate: terms!.cycleRate, ...clover().schedule, ...over }
   }
+  // Clover Patch runs Thursdays + Fridays; move only the Thursday time.
+  const thursdaysAt = (start: string, end: string) => clover().schedule.days.map((d) => (d.weekday === 4 ? { ...d, start, end } : d))
 
   it('moves the pending sessions in place and logs who changed what', () => {
-    updateIntake(rep(), 'i1', input({ start: '13:00', end: '14:15' }))
+    updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))
     const sessions = getState().sessions.filter((s) => s.intakeId === 'i1' && s.status === 'pending')
-    expect(sessions.length).toBe(8)
-    expect(sessions.every((s) => s.start === '13:00')).toBe(true)
-    expect(sessions[0].history.at(-1)?.text).toMatch(/^Changed by sales: .* → .*1pm–2:15pm$/)
+    expect(sessions.length).toBe(16)
+    const thursdays = sessions.filter((s) => weekdayOf(s.date) === 4)
+    expect(thursdays.every((s) => s.start === '13:00')).toBe(true)
+    expect(sessions.filter((s) => weekdayOf(s.date) === 5).every((s) => s.start === '10:00')).toBe(true)
+    expect(thursdays[0].history.at(-1)?.text).toMatch(/^Changed by sales: .* → .*1pm–2:15pm$/)
   })
 
   it('cancels (never deletes) sessions dropped by a shorter cycle', () => {
     const before = getState().sessions.length
-    updateIntake(rep(), 'i1', input({ terms: { ...input().terms, cycleWeeks: 4 } }))
+    updateIntake(rep(), 'i1', input({ cycleWeeks: 4 }))
     const mine = getState().sessions.filter((s) => s.intakeId === 'i1')
     expect(getState().sessions.length).toBe(before)
     expect(mine.filter((s) => s.status === 'cancelled').every((s) => s.cancelReason === 'changed_by_sales')).toBe(true)
-    expect(mine.filter((s) => s.status === 'pending').length).toBe(4)
+    expect(mine.filter((s) => s.status === 'pending').length).toBe(8)
   })
 
   it('is locked once a territory manager confirms a session', () => {
     const first = getState().sessions.find((s) => s.intakeId === 'i1')!
     confirmWithFacility(user('tm-lou'), first.id)
-    expect(() => updateIntake(rep(), 'i1', input({ start: '13:00', end: '14:15' }))).toThrow(/can’t be changed/)
+    expect(() => updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))).toThrow(/can’t be changed/)
   })
 
   it('only the rep who signed it can edit it', () => {
@@ -192,7 +238,7 @@ describe('program terms after signing', () => {
     updateTerms(user('admin'), center.id, { ...center.terms!, cycleRate: 1500 })
     const after = getState().centers.find((c) => c.id === 'lou-c8')!
     expect(after.terms!.cycleRate).toBe(1500)
-    expect(after.history?.at(-1)?.text).toBe('Cycle price: $1360 → $1500')
+    expect(after.history?.at(-1)?.text).toBe('Cycle price: $2720 → $1500')
   })
 })
 
@@ -236,5 +282,21 @@ describe('reschedule', () => {
     const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
     const moved = getState().sessions.find((x) => x.id === id)!
     expect(moved.history.at(-1)?.text).toMatch(/^Coaching staff notified by text to re-confirm: /)
+  })
+
+  it('keeps the reason note on both the original and the new session', () => {
+    const st = getState()
+    const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
+    const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'Field trip that morning')
+    const old = getState().sessions.find((x) => x.id === s.id)!
+    const moved = getState().sessions.find((x) => x.id === id)!
+    expect(old.history.at(-1)?.text).toMatch(/\(Field trip that morning\)$/)
+    expect(moved.history[0].text).toMatch(/\(Field trip that morning\)$/)
+  })
+
+  it('refuses a note over the limit', () => {
+    const st = getState()
+    const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
+    expect(() => reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'x'.repeat(NOTE_MAX + 1))).toThrow(/under 300 characters/)
   })
 })

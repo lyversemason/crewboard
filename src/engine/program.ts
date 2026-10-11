@@ -2,24 +2,95 @@
 // it really stands. Reschedules and make-up sessions push the end date out,
 // so the end is read from the sessions themselves, not from the calendar.
 
-import { addDays, mondayOf, weekdayOf } from './time'
-import type { ProgramTerms, Session, Weekday } from './types'
+import { addDays, fullDate, mondayOf, monthDay, toMinutes, weekdayOf, WEEKDAY_LONG } from './time'
+import type { CycleWeeks, Group, ProgramDay, ProgramTerms, Session, Weekday } from './types'
 import { isActive } from './validate'
 
 export const sessionsInCycle = (t: Pick<ProgramTerms, 'cycleWeeks' | 'weekdays'>) => t.cycleWeeks * t.weekdays.length
 
-/** Every planned date of a cycle, in order: each chosen weekday, week by week. */
-export function programDates(t: Pick<ProgramTerms, 'startDate' | 'cycleWeeks' | 'weekdays'>): string[] {
-  if (!t.startDate || t.weekdays.length === 0) return []
+/** The first date a weekday runs: its own first date, or the first match on or after the start. */
+export function firstDateFor(t: Pick<ProgramTerms, 'startDate' | 'firstDates'>, day: Weekday): string {
+  const own = t.firstDates?.[day]
+  if (own) return own
   const monday = mondayOf(t.startDate)
-  const days = [...t.weekdays].sort((a, b) => a - b)
+  const date = addDays(monday, day - 1)
+  return date >= t.startDate ? date : addDays(date, 7)
+}
+
+/** Every planned date of a cycle, in order. Each chosen day runs `cycleWeeks` weeks from its first date. */
+export function programDates(t: Pick<ProgramTerms, 'startDate' | 'cycleWeeks' | 'weekdays' | 'firstDates'>): string[] {
+  if (!t.startDate || t.weekdays.length === 0) return []
   const out: string[] = []
-  for (let w = 0; out.length < sessionsInCycle(t) && w < t.cycleWeeks + 1; w++) {
-    for (const d of days) {
-      const date = addDays(monday, w * 7 + d - 1)
-      if (date >= t.startDate && out.length < sessionsInCycle(t)) out.push(date)
+  for (const d of t.weekdays) {
+    const first = firstDateFor(t, d)
+    for (let w = 0; w < t.cycleWeeks; w++) out.push(addDays(first, w * 7))
+  }
+  return out.sort()
+}
+
+/** Program terms from the per-day schedule a sales rep enters. */
+export function termsFromDays(days: ProgramDay[], cycleWeeks: CycleWeeks, cycleRate: number): ProgramTerms {
+  const sorted = [...days].sort((a, b) => a.weekday - b.weekday)
+  const startDate = sorted.map((d) => d.firstDate).sort()[0] ?? ''
+  return {
+    startDate,
+    cycleWeeks,
+    weekdays: sorted.map((d) => d.weekday),
+    firstDates: Object.fromEntries(sorted.map((d) => [d.weekday, d.firstDate])),
+    cycleRate,
+  }
+}
+
+export interface PlannedSession {
+  date: string
+  weekday: Weekday
+  start: string
+  end: string
+  groups: Group[]
+}
+
+/** Every session a per-day schedule produces, in date and time order. */
+export function plannedSessions(days: ProgramDay[], cycleWeeks: number): PlannedSession[] {
+  const out: PlannedSession[] = []
+  for (const d of days) {
+    for (let w = 0; w < cycleWeeks; w++) {
+      out.push({ date: addDays(d.firstDate, w * 7), weekday: d.weekday, start: d.start, end: d.end, groups: d.groups })
     }
   }
+  return out.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+}
+
+/** "Thursdays & Fridays" */
+export function daysLabel(weekdays: Weekday[]): string {
+  return [...weekdays].sort((a, b) => a - b).map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')
+}
+
+/** "Thursdays & Fridays", or "Thursdays from October 15 & Fridays from October 23" when days start in different weeks. */
+export function scheduleLabel(t: Pick<ProgramTerms, 'startDate' | 'weekdays' | 'firstDates'>): string {
+  const days = [...t.weekdays].sort((a, b) => a - b)
+  const firsts = days.map((d) => firstDateFor(t, d))
+  if (new Set(firsts.map(mondayOf)).size <= 1) return daysLabel(days)
+  return days.map((d, i) => `${WEEKDAY_LONG[d]}s from ${monthDay(firsts[i])}`).join(' & ')
+}
+
+/** Why one day of a program can't be submitted, in plain words. Empty when it's fine. */
+export function dayProblems(day: ProgramDay, today: string): string[] {
+  const out: string[] = []
+  const name = WEEKDAY_LONG[day.weekday]
+  if (!day.firstDate) out.push(`Pick the first ${name}.`)
+  else {
+    const actual = new Date(`${day.firstDate}T00:00:00Z`).getUTCDay()
+    if (actual !== day.weekday) out.push(`${fullDate(day.firstDate)} is a ${WEEKDAY_LONG[actual]}. Pick a ${name}.`)
+    if (day.firstDate < today) out.push(`The first ${name} can’t be in the past.`)
+  }
+  const start = toMinutes(day.start)
+  const end = toMinutes(day.end)
+  const minutes = day.groups.reduce((m, g) => m + (g.minutes || 0), 0)
+  if (start < 9 * 60 || end > 18 * 60) out.push(`${name} sessions must fit between 9am and 6pm.`)
+  if (end <= start) out.push(`${name}: the end time must be after the start time.`)
+  else if (minutes > end - start) out.push(`${name}: the groups add up to ${minutes} minutes but the session is ${end - start}.`)
+  if (day.groups.length === 0) out.push(`${name}: add at least one group.`)
+  if (day.groups.some((g) => !(g.players > 0) || !(g.minutes > 0))) out.push(`${name}: every group needs kids and minutes.`)
   return out
 }
 

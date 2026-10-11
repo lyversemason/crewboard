@@ -7,7 +7,6 @@ import { useSyncExternalStore } from 'react'
 import {
   LifecycleError,
   cancelSession,
-  checkCoverage,
   coachConfirm,
   confirmSession,
   canAssign,
@@ -17,9 +16,13 @@ import {
   canEditIntake,
   canEditTerms,
   canSubmitIntake,
+  checkProgramCoverage,
+  dayProblems,
   hasBlock,
+  isValidEmail,
+  plannedSessions,
+  termsFromDays,
   mondayOf,
-  programDates,
   rescheduleSession,
   slotLabel,
   todayLocal,
@@ -30,9 +33,10 @@ import type {
   Center,
   Coach,
   CoachLevel,
-  CoverageRequest,
-  Group,
+  CycleWeeks,
   Intake,
+  PlannedSession,
+  ProgramDay,
   ProgramTerms,
   Session,
   Settings,
@@ -45,7 +49,7 @@ import type {
 import { buildDemo } from './data/seed'
 import type { DemoData } from './data/seed'
 
-const KEY = 'soccersessions:v2'
+const KEY = 'soccersessions:v3'
 
 const RULE_LABEL: Record<string, string> = {
   travel: 'travel time between centers',
@@ -176,11 +180,11 @@ export function confirmWithFacility(user: User, id: string) {
 }
 
 /** Moves a session. The coaching staff is told and has to re-confirm the new time. */
-export function reschedule(user: User, id: string, newDate: string, newStart: string, newEnd: string): string {
+export function reschedule(user: User, id: string, newDate: string, newStart: string, newEnd: string, note = ''): string {
   const s = findSession(id)
   requireManager(user, s)
   const at = now()
-  const [old, moved] = rescheduleSession(s, { newDate, newStart, newEnd, newId: idMaker('s', state.sessions)(), by: user.name, at })
+  const [old, moved] = rescheduleSession(s, { newDate, newStart, newEnd, newId: idMaker('s', state.sessions)(), by: user.name, at, note })
   if (moved.assignments.length) {
     const names = moved.assignments.map((a) => coachName(a.coachId)).join(', ')
     moved.history.push({ at, by: 'SoccerSessions', text: `Coaching staff notified by text to re-confirm: ${names}` })
@@ -306,53 +310,48 @@ export function updateTerms(user: User, centerId: string, terms: ProgramTerms) {
 
 export interface IntakeInput {
   center: Omit<Center, 'id' | 'terms' | 'history'>
-  terms: ProgramTerms
-  start: string
-  end: string
-  groups: Group[]
+  cycleWeeks: CycleWeeks
+  /** Price for the whole cycle (all days together). */
+  cycleRate: number
+  /** Each weekday with its own first date, times and groups. */
+  days: ProgramDay[]
   notes?: string
 }
 
-function coverageFor(input: IntakeInput, ignoreIntakeId?: string) {
-  const req: CoverageRequest = {
-    territoryId: input.center.territoryId,
-    location: input.center,
-    dates: programDates(input.terms),
-    start: input.start,
-    end: input.end,
-    groups: input.groups,
-  }
+/** Re-checks everything the form checks: the UI can't skip a rule. */
+function planFor(input: IntakeInput, ignoreIntakeId?: string): PlannedSession[] {
+  if (input.days.length < 1 || input.days.length > 3) throw new LifecycleError('Pick 1 to 3 days a week.')
+  if (new Set(input.days.map((d) => d.weekday)).size !== input.days.length) throw new LifecycleError('Each day can only be picked once.')
+  const problem = input.days.flatMap((d) => dayProblems(d, state.today))[0]
+  if (problem) throw new LifecycleError(problem)
+  if (!(input.cycleRate > 0)) throw new LifecycleError('Enter the price for the cycle.')
+  if (!isValidEmail(input.center.poc.email)) throw new LifecycleError('Enter a valid contact email.')
   // When editing, the intake's own sessions mustn't count as conflicts.
   const world = worldOf(state)
   const others = ignoreIntakeId ? { ...world, sessions: world.sessions.filter((s) => s.intakeId !== ignoreIntakeId) } : world
-  const coverage = checkCoverage(req, others)
+  const coverage = checkProgramCoverage(input.center.territoryId, input.center, input.days, input.cycleWeeks, others)
   if (!coverage.ok) throw new LifecycleError(coverage.reason ?? 'The coaching staff cannot cover this program.')
-  return req.dates
+  return plannedSessions(input.days, input.cycleWeeks)
 }
 
-function validateInput(input: IntakeInput) {
-  if (input.terms.weekdays.length < 1 || input.terms.weekdays.length > 3) throw new LifecycleError('Pick 1 to 3 days a week.')
-  if (!(input.terms.cycleRate > 0)) throw new LifecycleError('Enter the price for the cycle.')
-}
+const scheduleOf = (input: IntakeInput) => ({ days: input.days, notes: input.notes })
 
-/** Re-runs the coverage check server-side style: the UI can't skip it. */
 export function submitIntake(user: User, input: IntakeInput): string {
   if (!canSubmitIntake(user, input.center.territoryId)) throw new LifecycleError('You cannot submit intakes for this territory.')
-  validateInput(input)
-  const dates = coverageFor(input)
+  const plan = planFor(input)
 
   const at = now()
   const centerId = idMaker('c', state.centers)()
   const intakeId = idMaker('i', state.intakes)()
   const nextSession = idMaker('s', state.sessions)
-  const sessions: Session[] = dates.map((date) => ({
+  const sessions: Session[] = plan.map((p) => ({
     id: nextSession(),
     territoryId: input.center.territoryId,
     centerId,
-    date,
-    start: input.start,
-    end: input.end,
-    groups: input.groups,
+    date: p.date,
+    start: p.start,
+    end: p.end,
+    groups: p.groups,
     status: 'pending',
     assignments: [],
     overrides: [],
@@ -367,12 +366,12 @@ export function submitIntake(user: User, input: IntakeInput): string {
     centerId,
     submittedAt: at,
     sessionIds: sessions.map((s) => s.id),
-    schedule: { start: input.start, end: input.end, groups: input.groups, notes: input.notes },
+    schedule: scheduleOf(input),
     history: [{ at, by: user.name, text: 'Submitted' }],
   }
   commit({
     ...state,
-    centers: [...state.centers, { ...input.center, id: centerId, terms: input.terms }],
+    centers: [...state.centers, { ...input.center, id: centerId, terms: termsFromDays(input.days, input.cycleWeeks, input.cycleRate) }],
     sessions: [...state.sessions, ...sessions],
     intakes: [...state.intakes, intake],
   })
@@ -390,8 +389,7 @@ export function updateIntake(user: User, intakeId: string, input: IntakeInput) {
   if (!canEditIntake(user, intake, state.sessions, state.today)) {
     throw new LifecycleError('This submission can’t be changed anymore: a territory manager has confirmed it or it has started.')
   }
-  validateInput(input)
-  const dates = coverageFor(input, intakeId)
+  const plan = planFor(input, intakeId)
 
   const at = now()
   const log = (text: string) => ({ at, by: user.name, text })
@@ -401,17 +399,17 @@ export function updateIntake(user: User, intakeId: string, input: IntakeInput) {
   const nextSession = idMaker('s', state.sessions)
   const updated: Session[] = []
   const added: Session[] = []
-  dates.forEach((date, i) => {
+  plan.forEach((p, i) => {
     const old = current[i]
     if (!old) {
       added.push({
         id: nextSession(),
         territoryId: intake.territoryId,
         centerId: intake.centerId,
-        date,
-        start: input.start,
-        end: input.end,
-        groups: input.groups,
+        date: p.date,
+        start: p.start,
+        end: p.end,
+        groups: p.groups,
         status: 'pending',
         assignments: [],
         overrides: [],
@@ -421,16 +419,16 @@ export function updateIntake(user: User, intakeId: string, input: IntakeInput) {
       })
       return
     }
-    const moved = old.date !== date || old.start !== input.start || old.end !== input.end
-    const regrouped = JSON.stringify(old.groups) !== JSON.stringify(input.groups)
+    const moved = old.date !== p.date || old.start !== p.start || old.end !== p.end
+    const regrouped = JSON.stringify(old.groups) !== JSON.stringify(p.groups)
     if (!moved && !regrouped && old.notes === input.notes) return
     const history = [...old.history]
-    if (moved) history.push(log(`Changed by sales: ${slotLabel(old.date, old.start, old.end)} → ${slotLabel(date, input.start, input.end)}`))
+    if (moved) history.push(log(`Changed by sales: ${slotLabel(old.date, old.start, old.end)} → ${slotLabel(p.date, p.start, p.end)}`))
     if (regrouped) history.push(log('Groups changed by sales'))
     if (moved && old.assignments.length) history.push(log('Coaching staff cleared because the time changed'))
-    updated.push({ ...old, date, start: input.start, end: input.end, groups: input.groups, notes: input.notes, assignments: moved ? [] : old.assignments, overrides: moved ? [] : old.overrides, history })
+    updated.push({ ...old, date: p.date, start: p.start, end: p.end, groups: p.groups, notes: input.notes, assignments: moved ? [] : old.assignments, overrides: moved ? [] : old.overrides, history })
   })
-  for (const extra of current.slice(dates.length)) {
+  for (const extra of current.slice(plan.length)) {
     updated.push(cancelSession(extra, 'changed_by_sales', 'Fewer sessions after the program was changed', user.name, at))
   }
 
@@ -438,13 +436,13 @@ export function updateIntake(user: User, intakeId: string, input: IntakeInput) {
   const nextIntake: Intake = {
     ...intake,
     sessionIds: [...intake.sessionIds, ...added.map((s) => s.id)],
-    schedule: { start: input.start, end: input.end, groups: input.groups, notes: input.notes },
+    schedule: scheduleOf(input),
     history: [...intake.history, log('Edited by sales before confirmation')],
   }
   const byId = new Map(updated.map((s) => [s.id, s]))
   commit({
     ...state,
-    centers: state.centers.map((c) => (c.id === center.id ? { ...c, ...input.center, id: c.id, terms: input.terms } : c)),
+    centers: state.centers.map((c) => (c.id === center.id ? { ...c, ...input.center, id: c.id, terms: termsFromDays(input.days, input.cycleWeeks, input.cycleRate) } : c)),
     sessions: [...state.sessions.map((s) => byId.get(s.id) ?? s), ...added],
     intakes: state.intakes.map((i) => (i.id === intakeId ? nextIntake : i)),
   })

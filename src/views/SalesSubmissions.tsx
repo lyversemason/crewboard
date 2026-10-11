@@ -1,4 +1,4 @@
-import { canEditIntake, canSeePrice, intakeSessions, mediumDate, prettyDate, prettyTime, sessionsInCycle, visibleIntakes, WEEKDAY_LONG } from '../engine'
+import { canEditIntake, canSeePrice, intakeSessions, fullDate, prettyDate, prettyTime, sessionsInCycle, visibleIntakes, scheduleLabel } from '../engine'
 import type { User } from '../engine'
 import { href } from '../router'
 import { useStore } from '../store'
@@ -29,11 +29,11 @@ export function SalesSubmissions({ user }: { user: User }) {
                 <div>
                   <h3>{center.name}</h3>
                   <p className="muted small">
-                    {center.address} · submitted {mediumDate(intake.submittedAt.slice(0, 10))}
+                    {center.address} · submitted {fullDate(intake.submittedAt.slice(0, 10))}
                   </p>
                   {t && (
                     <p className="small">
-                      {t.cycleWeeks} weeks · {t.weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')}
+                      {t.cycleWeeks} weeks · {scheduleLabel(t)}
                       {canSeePrice(user, intake) && ` · ${money(t.cycleRate)} per cycle (${money(t.cycleRate / sessionsInCycle(t))}/session)`}
                     </p>
                   )}

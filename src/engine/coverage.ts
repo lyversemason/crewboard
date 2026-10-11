@@ -5,7 +5,7 @@
 import { addDays, fromMinutes, toMinutes, weekdayOf } from './time'
 import { checkCoachTime, checkCrewShape, coachesNeeded, countsTowardRatio, largestGroup } from './validate'
 import type { Slot } from './validate'
-import type { Coach, Group, Weekday, World } from './types'
+import type { Coach, Group, ProgramDay, Weekday, World } from './types'
 
 export interface CoverageRequest {
   territoryId: string
@@ -77,6 +77,28 @@ export function checkCoverage(req: CoverageRequest, world: World): CoverageResul
     dates,
     reason: bad.length ? `${bad.length} of ${dates.length} dates can't be staffed.` : undefined,
   }
+}
+
+/**
+ * The live check for a whole program: each weekday has its own first date,
+ * times and groups, so each is checked on its own dates and the results merged.
+ */
+export function checkProgramCoverage(
+  territoryId: string,
+  location: { lat: number; lng: number },
+  days: ProgramDay[],
+  cycleWeeks: number,
+  world: World,
+): CoverageResult {
+  if (days.length === 0) return { ok: false, dates: [], reason: 'Pick at least one day.' }
+  const results = days.map((d) =>
+    checkCoverage({ territoryId, location, dates: weeklyDates(d.firstDate, cycleWeeks), start: d.start, end: d.end, groups: d.groups }, world),
+  )
+  const failed = results.find((r) => !r.ok && r.dates.length === 0)
+  if (failed) return failed
+  const dates = results.flatMap((r) => r.dates).sort((a, b) => a.date.localeCompare(b.date))
+  const bad = dates.filter((d) => !d.ok)
+  return { ok: bad.length === 0, dates, reason: bad.length ? `${bad.length} of ${dates.length} dates can't be staffed.` : undefined }
 }
 
 /** Weekly dates starting from `first`. */

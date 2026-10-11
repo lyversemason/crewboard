@@ -41,10 +41,10 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 |---|---|
 | **Role-based access** | Ops admins see all territories; territory managers only theirs; sales reps only the intake and their own submissions; coaches only their own shifts. Coach pay rates are stripped from the data for non-managers, not just hidden. |
 | **Rules engine** | Blocks double-booking. Checks drive time between centers plus a configurable safety buffer, requires a lead coach on every session, and enforces 1 coach per 12 children in a group (13 means a second coach; trainees don't count). Territory managers can override with an explicit warning, up to 18 per coach and never past that. Days off and availability count too. |
-| **Sales intake** | The rep enters the program terms (cycle length, 1–3 days a week, start and end time, price for the whole cycle) plus facility, contact, groups, space and obstacles. A live check proves qualified coaches exist on **every** date, using the same rules with no overrides and without assigning anyone. If it can't, Submit is locked and open slots are suggested. Reps can edit a submission until a territory manager confirms it. |
+| **Sales intake** | The rep types the address and picks it from a live address search (free OpenStreetMap lookup, no API key, so it can never run up a bill). Each weekday of the program gets its own first date, times and groups (Thursdays from one week, Fridays from the next), and one price covers the whole cycle. Phone numbers format themselves, misspelled emails like `@gmail.con` are refused, and wrong fields are outlined in red with a message. A live check proves qualified coaches exist on **every** date, using the same rules with no overrides and without assigning anyone. If it can't, Submit is locked and open slots are suggested. Reps can edit a submission until a territory manager confirms it. |
 | **Program cycles** | Every session shows "session 3 of 8" and the cycle's real end date, read from the sessions, so reschedules and make-ups push it out. Missing make-ups are flagged and cycles ending soon are listed for renewal. |
-| **Session lifecycle** | Pending → confirmed → rescheduled / cancelled. **Nothing is ever deleted**: a reschedule keeps the original, links a new session and texts the coaching staff to re-confirm; a cancellation needs a reason code. Every change is logged with who and when. |
-| **Territory manager views** | Week calendar and a filterable table with live rule badges, plus Coaching Staff: click a coach to change level, pay rate or contact details (logged), and see availability and weekly check-ins read-only. |
+| **Session lifecycle** | Pending → confirmed → rescheduled / cancelled. **Nothing is ever deleted**: a reschedule keeps the original, links a new session and texts the coaching staff to re-confirm; a cancellation needs a reason code. Both take an optional note (up to 300 characters). Every change is logged with who and when. |
+| **Territory manager views** | Week calendar with a one-day view (every territory side by side), a filterable table with live rule badges, plus Coaching Staff: click a coach to change level, pay rate or contact details (logged), and see availability and weekly check-ins read-only. |
 | **Coach phone view** | My shifts by day, a full shift package, tap-to-map, call and text buttons, confirm one shift or the whole week, a weekly "has your availability changed?" check-in, usual week, one-week changes and days off. |
 
 <table>
@@ -80,11 +80,14 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 158 automated tests cover the edge cases that matter in
+3. **Tests for every rule.** 181 automated tests cover the edge cases that matter in
    the field: a gap exactly equal to drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
    override, trainees don't count toward the ratio, a day off blocks only that day, a
-   reschedule past the planned end pushes the cycle out, nothing can be deleted, and a
+   reschedule past the planned end pushes the cycle out, a Thursday + Friday program
+   whose first three Thursdays were cancelled still delivers all 16 sessions and ends
+   three weeks late, 16-week twice-a-week programs count correctly, a start date on the
+   wrong weekday is refused, nothing can be deleted, and a
    sales rep can't submit an unstaffable program or edit a confirmed one even by skipping
    the UI. Another set checks the regenerated demo data for every week of the coming year.
 4. **Demo data made by the engine.** The fake company is staffed by the real rules
@@ -116,8 +119,8 @@ scripts/        Screenshot generator for this README
 Built with TypeScript, React and Vite, and deployed to GitHub Pages by GitHub Actions
 on every push (tests must pass first). There's no backend: each visitor gets their own
 copy of the demo company in localStorage. A production version would add real sign-in,
-a shared database, a routing API for drive times, an address-verification API and real
-text messages.
+a shared database, a routing API for drive times and real text messages. (The address
+search is the one live outside call: typed addresses go to the free Photon service.)
 
 ## Run it locally
 

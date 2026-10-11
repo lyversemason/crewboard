@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addDays, cycleStatus, endingSoon, mediumDate, mondayOf, numDate, planningWeek, openIssues, prettyDate, prettyTime } from '../engine'
+import { addDays, cycleStatus, endingSoon, fullDate, mondayOf, dateSpan, planningWeek, openIssues, prettyDate, prettyTime } from '../engine'
 import type { Settings, User } from '../engine'
 import { href } from '../router'
 import { updateSettings, useStore, worldOf } from '../store'
@@ -44,7 +44,7 @@ export function AdminDashboard({ user }: { user: User }) {
   return (
     <div className="dash">
       <p className="date-head">
-        {numDate(week)} – {numDate(horizon)}
+        {dateSpan(week, horizon)}
       </p>
       <Hint>The two weeks being planned, across all three territories. Hover a territory and click it to work as its territory manager.</Hint>
       <div className="kpi-grid">
@@ -58,11 +58,11 @@ export function AdminDashboard({ user }: { user: User }) {
                 <dt>Sessions</dt>
                 <dd>{r.total}</dd>
               </div>
-              <div className={r.unassigned ? 'warn' : ''}>
+              <div className={r.unassigned ? 'bad' : ''}>
                 <dt>Need coaching staff</dt>
                 <dd>{r.unassigned}</dd>
               </div>
-              <div className={r.issues ? 'bad' : ''}>
+              <div className={r.issues ? 'issue' : ''}>
                 <dt>Rule issues</dt>
                 <dd>{r.issues}</dd>
               </div>
@@ -116,7 +116,7 @@ export function AdminDashboard({ user }: { user: User }) {
                     <strong>{c.name}</strong>
                   </a>
                   <small>
-                    {state.territories.find((t) => t.id === c.territoryId)?.name} · ends {mediumDate(st.endsOn!)} · {st.delivered} of {st.total} done · {money(c.terms!.cycleRate)} per cycle
+                    {state.territories.find((t) => t.id === c.territoryId)?.name} · ends {fullDate(st.endsOn!)} · {st.delivered} of {st.total} done · {money(c.terms!.cycleRate)} per cycle
                   </small>
                 </li>
               ))}

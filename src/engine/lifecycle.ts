@@ -8,6 +8,15 @@ import type { CancelReason, Session } from './types'
 
 export class LifecycleError extends Error {}
 
+/** Longest note allowed on a cancellation or reschedule. */
+export const NOTE_MAX = 300
+
+function cleanNote(note: string | undefined): string {
+  const n = (note ?? '').trim()
+  if (n.length > NOTE_MAX) throw new LifecycleError(`Keep the note under ${NOTE_MAX} characters (it has ${n.length}).`)
+  return n
+}
+
 function log(s: Session, by: string, at: string, text: string): Session['history'] {
   return [...s.history, { at, by, text }]
 }
@@ -24,6 +33,8 @@ export interface RescheduleInput {
   newId: string
   by: string
   at: string
+  /** Why it moved, e.g. "Field trip that day". */
+  note?: string
 }
 
 /**
@@ -35,6 +46,8 @@ export function rescheduleSession(s: Session, input: RescheduleInput): [Session,
     throw new LifecycleError(`A ${s.status} session can't be rescheduled.`)
   }
   if (!input.newDate) throw new LifecycleError('Rescheduled Date is required.')
+  const note = cleanNote(input.note)
+  const why = note ? ` (${note})` : ''
   const start = input.newStart ?? s.start
   const end = input.newEnd ?? s.end
   if (input.newDate === s.date && start === s.start && end === s.end) {
@@ -45,7 +58,7 @@ export function rescheduleSession(s: Session, input: RescheduleInput): [Session,
     status: 'rescheduled',
     rescheduledDate: input.newDate,
     rescheduledToId: input.newId,
-    history: log(s, input.by, input.at, `Rescheduled to ${slotLabel(input.newDate, start, end)}`),
+    history: log(s, input.by, input.at, `Rescheduled to ${slotLabel(input.newDate, start, end)}${why}`),
   }
   const moved: Session = {
     ...s,
@@ -59,7 +72,7 @@ export function rescheduleSession(s: Session, input: RescheduleInput): [Session,
     rescheduledFromId: s.id,
     assignments: s.assignments.map((a) => ({ coachId: a.coachId, confirmedByCoach: false })),
     overrides: [],
-    history: [{ at: input.at, by: input.by, text: `Moved here from ${slotLabel(s.date, s.start, s.end)}` }],
+    history: [{ at: input.at, by: input.by, text: `Moved here from ${slotLabel(s.date, s.start, s.end)}${why}` }],
   }
   return [old, moved]
 }
@@ -70,12 +83,13 @@ export function cancelSession(s: Session, reason: CancelReason, note: string, by
   }
   if (!(reason in CANCEL_REASONS)) throw new LifecycleError('A cancellation reason code is required.')
   if (reason === 'other' && !note.trim()) throw new LifecycleError('Explain the reason when choosing "Other".')
+  note = cleanNote(note)
   return {
     ...s,
     status: 'cancelled',
     cancelReason: reason,
-    cancelNote: note.trim() || undefined,
-    history: log(s, by, at, `Cancelled: ${CANCEL_REASONS[reason]}${note.trim() ? ` (${note.trim()})` : ''}`),
+    cancelNote: note || undefined,
+    history: log(s, by, at, `Cancelled: ${CANCEL_REASONS[reason]}${note ? ` (${note})` : ''}`),
   }
 }
 

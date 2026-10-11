@@ -77,7 +77,7 @@ export interface SpaceProfile {
   backupIndoorSpace: boolean
 }
 
-export const CYCLE_WEEKS = [1, 2, 4, 8, 12, 20] as const
+export const CYCLE_WEEKS = [1, 2, 4, 8, 10, 12, 16, 20] as const
 export type CycleWeeks = (typeof CYCLE_WEEKS)[number]
 
 /**
@@ -90,6 +90,12 @@ export interface ProgramTerms {
   cycleWeeks: CycleWeeks
   /** Which days of the week sessions run (1 to 3 days). */
   weekdays: Weekday[]
+  /**
+   * A day that starts later than the program, e.g. Thursdays from Oct 15 but
+   * Fridays from Oct 23. Each day runs `cycleWeeks` weeks from its own first date.
+   * Days not listed start on the first matching date on or after `startDate`.
+   */
+  firstDates?: Partial<Record<Weekday, string>>
   /** Total price for the cycle, in dollars. */
   cycleRate: number
 }
@@ -171,11 +177,19 @@ export interface Session {
   notes?: string
 }
 
-/** The scheduling part of a sales intake, kept so the rep can edit it later. */
-export interface IntakeSchedule {
+/** One weekday of a program: when it starts and its own times and groups. */
+export interface ProgramDay {
+  weekday: Weekday
+  /** The first session on this weekday (must fall on that weekday). */
+  firstDate: string
   start: string
   end: string
   groups: Group[]
+}
+
+/** The scheduling part of a sales intake, kept so the rep can edit it later. */
+export interface IntakeSchedule {
+  days: ProgramDay[]
   notes?: string
 }
 

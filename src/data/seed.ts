@@ -15,8 +15,10 @@ import {
   pickCrew,
   cycleStatus,
   planningWeek,
+  plannedSessions,
   programDates,
   slotLabel,
+  termsFromDays,
   toMinutes,
   transitMinutes,
   validateCrew,
@@ -28,6 +30,7 @@ import type {
   CoachLevel,
   Group,
   Intake,
+  ProgramDay,
   Session,
   Settings,
   SpaceProfile,
@@ -72,6 +75,9 @@ const CENTER_NAMES: Record<string, string[]> = {
   knx: ['Smoky Ridge Learning Center', 'Dogwood Corner Preschool', 'Little Bear Creek Academy', 'Firefly Field Child Care', 'Cedar Hollow Day School', 'Pinecone Path Montessori', 'Riverstone Kids Campus'],
   oak: ['Redwood Sprouts Preschool', 'Lakeside Wonder Kids', 'Golden Poppy Child Center', 'Bayview Little Learners', 'Eucalyptus Grove Academy', 'Hilltop Hummingbirds', 'Fogbank Montessori'],
 }
+
+/** Runs Thursdays + Fridays; its first three Thursdays were cancelled and made up at the end. */
+const SKIPPED_CENTER = 'lou-c1'
 
 const STREETS = ['Maple Ridge Dr', 'Orchard Ave', 'Linden St', 'Willow Bend Rd', 'Cardinal Way', 'Briar Ln', 'Juniper Ct', 'Sycamore Blvd', 'Hawthorne Pl', 'Aspen Trail']
 
@@ -191,7 +197,7 @@ export function buildDemo(today: string): DemoData {
           ext: r() < 0.4 ? String(100 + Math.floor(r() * 50)) : undefined,
         },
         space: spaceFor(r),
-        terms: { startDate: '', cycleWeeks: pick([4, 8, 8, 12] as const), weekdays: [], cycleRate: 0 },
+        terms: { startDate: '', cycleWeeks: pick([4, 8, 8, 10, 12, 16] as const), weekdays: [], cycleRate: 0 },
       })
     })
     LEVELS.forEach((level, i) => {
@@ -223,13 +229,15 @@ export function buildDemo(today: string): DemoData {
   interface Cadence { centerId: string; territoryId: string; weekday: Weekday; start: string; groups: Group[] }
   const cadences: Cadence[] = []
   for (const c of centers) {
-    const slots = pick([1, 1, 2])
+    // One center always runs Thursdays + Fridays for 8 weeks (see plantSkippedThursdays).
+    const fixed = c.id === SKIPPED_CENTER ? ([4, 5] as Weekday[]) : null
+    const slots = fixed ? 2 : pick([1, 1, 2])
     const used = new Set<number>()
     for (let k = 0; k < slots; k++) {
       // Try a few random times; keep the first one the roster could staff.
       let chosen: Cadence | undefined
-      for (let attempt = 0; attempt < 12 && !chosen; attempt++) {
-        const weekday = (1 + Math.floor(r() * 5)) as Weekday
+      for (let attempt = 0; attempt < (fixed ? 30 : 12) && !chosen; attempt++) {
+        const weekday = fixed ? fixed[k] : ((1 + Math.floor(r() * 5)) as Weekday)
         if (used.has(weekday)) continue
         const start = fromMinutes(9 * 60 + 30 * Math.floor(r() * 14)) // 9:00-15:30
         const cad = { centerId: c.id, territoryId: c.territoryId, weekday, start, groups: groupsFor(r) }
@@ -247,8 +255,9 @@ export function buildDemo(today: string): DemoData {
       delete c.terms
       continue
     }
+    if (fixed) terms.cycleWeeks = 8
     // Cycles started anywhere from this week to six weeks ago.
-    const weeksAgo = Math.floor(r() * Math.min(terms.cycleWeeks, 7))
+    const weeksAgo = fixed ? 4 : Math.floor(r() * Math.min(terms.cycleWeeks, 7))
     terms.startDate = addDays(thisMonday, -7 * weeksAgo + terms.weekdays[0] - 1)
     const perSession = 140 + Math.floor(r() * 9) * 10
     terms.cycleRate = perSession * terms.cycleWeeks * terms.weekdays.length
@@ -315,6 +324,7 @@ export function buildDemo(today: string): DemoData {
 
   plantDemoCases(world, today, thisMonday, nowIso, newId)
   plantMakeUp(world, today, nowIso, newId)
+  plantSkippedThursdays(world, today, nowIso, newId)
   plantTimeOff(world, today)
 
   const intakes: Intake[] = []
@@ -402,7 +412,7 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
 
   // 4. Rescheduled and cancelled sessions, kept for the audit trail.
   //    Move a session to a nearby weekday its crew can still work.
-  const movable = world.sessions.filter((s) => s.territoryId === 'lou' && s.date >= addDays(monday, 7) && s.status === 'confirmed' && s.assignments.length && !s.overrides.length)
+  const movable = world.sessions.filter((s) => s.territoryId === 'lou' && s.centerId !== SKIPPED_CENTER && s.date >= addDays(monday, 7) && s.status === 'confirmed' && s.assignments.length && !s.overrides.length)
   moving: for (const toMove of movable) for (const offset of [1, -1, 2, -2, 3]) {
     const newDate = addDays(toMove.date, offset)
     const dow = new Date(`${newDate}T00:00:00Z`).getUTCDay()
@@ -458,13 +468,25 @@ function plantIntake(world: World, intakes: Intake[], monday: string, at: string
     lng: z.lng - 0.003,
     poc: { name: 'Robin Sutter', title: 'Center Director', email: 'robin@cloverpatch.example.com', phone: '502-555-0148', ext: '12' },
     space: { category: 'outdoor', outdoorSurface: 'short_grass', grade: 'flat', obstacles: ['Playground structures'], backupIndoorSpace: true },
-    terms: { startDate: addDays(monday, 7 + 3), cycleWeeks: 8, weekdays: [4], cycleRate: 1360 }, // Thursdays
+    // Thursdays from next week; Fridays start a week later, with their own groups.
+    terms: { startDate: '', cycleWeeks: 8, weekdays: [], cycleRate: 2720 },
   }
-  world.centers.push(center)
-  const groups: Group[] = [
-    { players: 10, ageRange: '3-4', minutes: 30 },
-    { players: 12, ageRange: '4-5', minutes: 45 },
+  const days: ProgramDay[] = [
+    {
+      weekday: 4,
+      firstDate: addDays(monday, 7 + 3),
+      start: '10:30',
+      end: '',
+      groups: [
+        { players: 10, ageRange: '3-4', minutes: 30 },
+        { players: 12, ageRange: '4-5', minutes: 45 },
+      ],
+    },
+    { weekday: 5, firstDate: addDays(monday, 14 + 4), start: '10:00', end: '', groups: [{ players: 11, ageRange: '4-5', minutes: 45 }] },
   ]
+  for (const d of days) d.end = blockEnd(d.start, d.groups)
+  center.terms = termsFromDays(days, 8, 2720)
+  world.centers.push(center)
   const intake: Intake = {
     id: 'i1',
     salesRepId: 'rep-east',
@@ -472,20 +494,20 @@ function plantIntake(world: World, intakes: Intake[], monday: string, at: string
     centerId: center.id,
     submittedAt: at,
     sessionIds: [],
-    schedule: { start: '10:30', end: blockEnd('10:30', groups), groups },
+    schedule: { days },
     history: [{ at, by: 'Jamie Ellison', text: 'Submitted' }],
   }
-  for (const date of programDates(center.terms!)) {
+  for (const p of plannedSessions(days, 8)) {
     const id = newId()
     intake.sessionIds.push(id)
     world.sessions.push({
       id,
       territoryId: 'lou',
       centerId: center.id,
-      date,
-      start: '10:30',
-      end: blockEnd('10:30', groups),
-      groups,
+      date: p.date,
+      start: p.start,
+      end: p.end,
+      groups: p.groups,
       status: 'pending',
       assignments: [],
       overrides: [],
@@ -501,7 +523,7 @@ function plantIntake(world: World, intakes: Intake[], monday: string, at: string
  * added after the planned end, so that cycle visibly ends a week late.
  */
 function plantMakeUp(world: World, today: string, at: string, newId: () => string) {
-  for (const center of world.centers.filter((c) => c.territoryId === 'lou' && c.terms)) {
+  for (const center of world.centers.filter((c) => c.territoryId === 'lou' && c.terms && c.id !== SKIPPED_CENTER)) {
     const mine = world.sessions.filter((s) => s.centerId === center.id)
     const status = cycleStatus(center.terms!, mine, today)
     if (!status.endsOn || status.endsOn < today || status.needsMakeUp) continue
@@ -542,4 +564,43 @@ function plantTimeOff(world: World, today: string) {
     (c) => c.territoryId === 'lou' && !world.sessions.some((s) => s.date >= from && s.date <= to && s.assignments.some((a) => a.coachId === c.id)),
   )
   if (free) free.timeOff.push({ id: 't1', from, to, note: 'Family vacation' })
+}
+
+/**
+ * A Thursday + Friday program whose director cancelled the first three
+ * Thursdays (building repairs). Each gets a make-up Thursday after the planned
+ * end, so the cycle still delivers every session and visibly ends late.
+ */
+function plantSkippedThursdays(world: World, today: string, at: string, newId: () => string) {
+  const center = world.centers.find((c) => c.id === SKIPPED_CENTER)
+  if (!center?.terms || center.terms.weekdays.join() !== '4,5') return
+  const thursdays = world.sessions
+    .filter((s) => s.centerId === center.id && s.status === 'confirmed' && s.date < today && new Date(`${s.date}T00:00:00Z`).getUTCDay() === 4)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3)
+  const plannedEnd = cycleStatus(center.terms, world.sessions.filter((s) => s.centerId === center.id), today).plannedEnd!
+  const lastThursday = programDates(center.terms).filter((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 4).at(-1)!
+  thursdays.forEach((lost, i) => {
+    Object.assign(lost, {
+      status: 'cancelled',
+      cancelReason: 'facility_closed',
+      cancelNote: 'Building repairs; the director asked to skip Thursdays for three weeks',
+      history: [...lost.history, { at, by: 'Priya Raman', text: 'Cancelled: Facility closed (Building repairs; the director asked to skip Thursdays for three weeks)' }],
+    })
+    const makeUp: Session = {
+      ...lost,
+      id: '',
+      date: addDays(lastThursday, 7 * (i + 1)),
+      status: 'confirmed',
+      cancelReason: undefined,
+      cancelNote: undefined,
+      assignments: [],
+      overrides: [],
+      history: [{ at, by: 'Priya Raman', text: `Make-up for the cancelled ${slotLabel(lost.date, lost.start, lost.end)} (cycle extended past ${plannedEnd})` }],
+    }
+    const crew = pickCrew(eligibleCoaches({ ...makeUp, location: center }, world), makeUp.groups, world)
+    makeUp.assignments = (crew ?? []).map((c) => ({ coachId: c.id, confirmedByCoach: false }))
+    if (!crew) makeUp.status = 'pending'
+    world.sessions.push({ ...makeUp, id: newId() })
+  })
 }

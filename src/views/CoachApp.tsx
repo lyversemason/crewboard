@@ -1,7 +1,7 @@
 // The coach's phone view: only their own shifts, plus a territory directory.
 
 import { useState } from 'react'
-import { addDays, hasConfirmedWeek, longDate, mediumDate, numDate, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, WEEKDAY_LONG, dayOfWeek } from '../engine'
+import { addDays, hasConfirmedWeek, longDate, weekdayMonthDay, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, dateSpan, dayOfWeek } from '../engine'
 import type { Coach, Session, User, Weekday } from '../engine'
 import { href, setParams, useRoute } from '../router'
 import { addTimeOff, coachConfirmMany, confirmAvailability, removeTimeOff, setAvailability, setWeekChange, useStore } from '../store'
@@ -99,7 +99,7 @@ function Shifts({ user }: { user: User }) {
       {[...byDay.entries()].map(([date, sessions]) => (
         <section key={date} className={`phone-day day-${dayOfWeek(date)}`}>
           <h3>
-            {WEEKDAY_LONG[dayOfWeek(date)]} <span className="muted">{numDate(date)}</span>
+            {weekdayMonthDay(date)}
           </h3>
           {sessions.map((s) => {
             const center = state.centers.find((c) => c.id === s.centerId)!
@@ -391,8 +391,7 @@ function DaysOff({ user, coach, today, onSaved }: { user: User; coach: Coach; to
             <li key={t.id}>
               <span>
                 <strong>
-                  {mediumDate(t.from)}
-                  {t.to !== t.from && ` – ${mediumDate(t.to)}`}
+                  {dateSpan(t.from, t.to)}
                 </strong>
                 {t.note && <small className="muted"> · {t.note}</small>}
               </span>

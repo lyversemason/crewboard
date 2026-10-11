@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { addDays, dayOfWeek, numDate, planningWeek, openIssues, prettyTime, WEEKDAY_LONG } from '../engine'
+import { addDays, dayOfWeek, longDate, planningWeek, openIssues, prettyTime } from '../engine'
 import type { SessionStatus, User } from '../engine'
 import { setParams } from '../router'
 import { worldOf } from '../store'
@@ -77,7 +77,7 @@ export function TableView({ user }: { user: User }) {
                 <Fragment key={date}>
                   <tr className={`day-row day-${dayOfWeek(date)}`}>
                     <td colSpan={selected === 'all' ? 8 : 7}>
-                      {WEEKDAY_LONG[dayOfWeek(date)]} · {numDate(date)}
+                      {longDate(date)}
                       {date === state.today && <span className="chip small">Today</span>}
                     </td>
                   </tr>
@@ -88,7 +88,7 @@ export function TableView({ user }: { user: User }) {
                       const confirmed = s.assignments.filter((a) => a.confirmedByCoach).length
                       const closed = s.status === 'cancelled' || s.status === 'rescheduled'
                       return (
-                        <tr key={s.id} className={`row ${closed ? 'closed' : ''}`} onClick={() => openSession(route, s.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && openSession(route, s.id)}>
+                        <tr key={s.id} className={`row ${closed ? 'closed' : ''} ${!s.assignments.length && !closed ? 'needs-staff' : ''}`} onClick={() => openSession(route, s.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && openSession(route, s.id)}>
                           <td className="nowrap">
                             {prettyTime(s.start)}–{prettyTime(s.end)}
                           </td>
@@ -104,7 +104,7 @@ export function TableView({ user }: { user: User }) {
                           </td>
                           <td>
                             {issues.length ? (
-                              <span className="flag bad" title={issues.map((v) => shortWarning(v)).join('\n')}>
+                              <span className="flag issue" title={issues.map((v) => shortWarning(v)).join('\n')}>
                                 ⚠ {issues.map((v) => v.code.replace('_', ' ')).join(', ')}
                               </span>
                             ) : s.overrides.length && !closed ? (

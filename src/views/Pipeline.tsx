@@ -3,7 +3,7 @@
 // ops admin can correct the price after signing.
 
 import { useState } from 'react'
-import { canEditTerms, canSeeMoney, cycleStatus, mediumDate, prettyDate, prettyTime, sessionsInCycle, toMinutes, visibleIntakes, WEEKDAY_LONG } from '../engine'
+import { canEditTerms, canSeeMoney, cycleStatus, fullDate, prettyDate, prettyTime, sessionsInCycle, toMinutes, visibleIntakes, scheduleLabel } from '../engine'
 import type { Center, User } from '../engine'
 import { updateTerms } from '../store'
 import { Empty, Hint, StatusPill, Toast } from '../ui/bits'
@@ -38,7 +38,7 @@ export function Pipeline({ user }: { user: User }) {
                 <div>
                   <h3>{center.name}</h3>
                   <p className="muted small">
-                    {center.address} · signed by {rep?.name ?? 'unknown'} on {mediumDate(intake.submittedAt.slice(0, 10))}
+                    {center.address} · signed by {rep?.name ?? 'unknown'} on {fullDate(intake.submittedAt.slice(0, 10))}
                   </p>
                 </div>
                 {unstaffed > 0 ? <span className="flag pending">{unstaffed} need coaching staff</span> : <span className="flag ok">Staffed</span>}
@@ -48,7 +48,7 @@ export function Pipeline({ user }: { user: User }) {
                   <strong>
                     {status.delivered} of {status.total} sessions done
                   </strong>{' '}
-                  · {status.startedOn ? `starts ${mediumDate(status.startedOn)}` : ''} · ends {status.endsOn ? mediumDate(status.endsOn) : '—'}
+                  · {status.startedOn ? `starts ${fullDate(status.startedOn)}` : ''} · ends {status.endsOn ? fullDate(status.endsOn) : '—'}
                   {status.needsMakeUp > 0 && <span className="warn"> · {status.needsMakeUp} need a make-up date</span>}
                 </p>
               )}
@@ -110,7 +110,7 @@ function Terms({
   const cost = ((minutesPerSession + 30) / 60) * avgRate.rate
   const margin = perSession - cost
   const editable = canEditTerms(user)
-  const days = terms.weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')
+  const days = scheduleLabel(terms)
 
   return (
     <div className="terms">
@@ -118,7 +118,7 @@ function Terms({
         Program terms <span className="tag">Entered by {repName}</span>
       </h4>
       <p className="small">
-        {terms.cycleWeeks} week{terms.cycleWeeks > 1 ? 's' : ''} · {days} · {total} sessions · first session {mediumDate(terms.startDate)}
+        {terms.cycleWeeks} week{terms.cycleWeeks > 1 ? 's' : ''} · {days} · {total} sessions · first session {fullDate(terms.startDate)}
       </p>
       <div className="terms-row">
         {editable ? (

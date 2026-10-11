@@ -4,7 +4,7 @@
 // here read-only.
 
 import { useState } from 'react'
-import { addDays, canEditCoach, canSeeMoney, hasConfirmedWeek, mediumDate, planningWeek, toMinutes, upcomingTimeOff, visibleRoster, weekHours, weekRange } from '../engine'
+import { addDays, canEditCoach, dateSpan, canSeeMoney, hasConfirmedWeek, planningWeek, toMinutes, upcomingTimeOff, visibleRoster, weekHours, weekRange } from '../engine'
 import type { Coach, CoachLevel, User } from '../engine'
 import { updateCoach } from '../store'
 import { Hint, LevelTag, Modal, Phone, Toast } from '../ui/bits'
@@ -40,7 +40,7 @@ export function CoachingStaff({ user }: { user: User }) {
         <TerritoryPicker user={user} />
         <span className="week-label">{weekRange(week)}</span>
         <div className="summary">
-          <span className={notConfirmed ? 'warn' : ''}>
+          <span className={notConfirmed ? 'bad' : 'ok'}>
             {notConfirmed} coach{notConfirmed === 1 ? ' hasn’t' : 'es haven’t'} confirmed availability this week
           </span>
         </div>
@@ -88,7 +88,7 @@ export function CoachingStaff({ user }: { user: User }) {
                     <AvailabilityGrid value={weekHours(coach, week)} mini />
                     {off.length > 0 && <small className="muted"> Day off</small>}
                   </td>
-                  <td>{hasConfirmedWeek(coach, week) ? <span className="yes-mark">✓ Yes</span> : <span className="no-mark">Not yet</span>}</td>
+                  <td>{hasConfirmedWeek(coach, week) ? <span className="flag ok">✓ Confirmed</span> : <span className="flag pending">Pending</span>}</td>
                 </tr>
               )
             })}
@@ -182,7 +182,7 @@ function CoachEditor({ user, coach, week, today, onClose, onSaved }: { user: Use
       <section className="sp-section">
         <h3>Availability (set by the coach)</h3>
         <p className="small">
-          Week of {weekRange(week)}: {hasConfirmedWeek(coach, week) ? <span className="yes-mark">✓ confirmed by the coach</span> : <span className="no-mark">not confirmed yet</span>}
+          Week of {weekRange(week)}: {hasConfirmedWeek(coach, week) ? <span className="flag ok">✓ Confirmed by the coach</span> : <span className="flag pending">Pending</span>}
           {changedWeek && <span className="muted"> · changed for this week only</span>}
         </p>
         <AvailabilityGrid value={weekHours(coach, week)} />
@@ -194,8 +194,7 @@ function CoachEditor({ user, coach, week, today, onClose, onSaved }: { user: Use
             {off.map((t) => (
               <li key={t.id}>
                 <span>
-                  {mediumDate(t.from)}
-                  {t.to !== t.from && ` – ${mediumDate(t.to)}`}
+                  {dateSpan(t.from, t.to)}
                 </span>
                 <small className="muted">{t.note}</small>
               </li>

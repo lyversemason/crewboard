@@ -74,21 +74,37 @@ export function longDate(date: string): string {
   return `${WEEKDAY_LONG[d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
 }
 
-/** "Oct 12, 2026" */
-export function mediumDate(date: string): string {
-  const d = parse(date)
-  return `${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
-}
-
 /** "10-12-2026" */
 export function numDate(date: string): string {
   const [y, m, d] = date.split('-')
   return `${m}-${d}-${y}`
 }
 
-/** Monday to Saturday of a week: "10-12-2026 – 10-17-2026" */
+/** "October 12, 2026" */
+export function fullDate(date: string): string {
+  const d = parse(date)
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
+}
+
+/** "October 12" */
+export function monthDay(date: string): string {
+  const d = parse(date)
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`
+}
+
+/** "Monday, October 12" */
+export function weekdayMonthDay(date: string): string {
+  return `${WEEKDAY_LONG[parse(date).getUTCDay()]}, ${monthDay(date)}`
+}
+
+/** "October 12, 2026 – October 24, 2026": words, not number-dash dates. */
+export function dateSpan(from: string, to: string): string {
+  return from === to ? fullDate(from) : `${fullDate(from)} – ${fullDate(to)}`
+}
+
+/** Monday to Saturday of a week: "October 12, 2026 – October 17, 2026" */
 export function weekRange(monday: string): string {
-  return `${numDate(monday)} – ${numDate(addDays(monday, 5))}`
+  return dateSpan(monday, addDays(monday, 5))
 }
 
 export const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   CANCEL_REASONS,
   LifecycleError,
+  NOTE_MAX,
   canAssign,
   canSeeMoney,
   cycleStatus,
@@ -9,12 +10,12 @@ import {
   isWorkday,
   largestGroup,
   longDate,
-  mediumDate,
+  fullDate,
   prettyTime,
   sessionNumber,
   sessionsInCycle,
   validateCrew,
-  WEEKDAY_LONG,
+  scheduleLabel,
 } from '../engine'
 import type { CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
@@ -326,7 +327,7 @@ function ProgramBox({ center, session }: { center: Center; session: Session }) {
   if (!terms) return null
   const status = cycleStatus(terms, state.sessions.filter((x) => x.centerId === center.id), state.today)
   const n = sessionNumber(status, session.id)
-  const days = terms.weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')
+  const days = scheduleLabel(terms)
   const pushed = status.endsOn && status.plannedEnd && status.endsOn > status.plannedEnd
   const perSession = terms.cycleRate / sessionsInCycle(terms)
   return (
@@ -344,11 +345,11 @@ function ProgramBox({ center, session }: { center: Center; session: Session }) {
         </span>
         <span>
           <span className="k">Started</span>
-          <span className="v">{status.startedOn ? mediumDate(status.startedOn) : mediumDate(terms.startDate)}</span>
+          <span className="v">{status.startedOn ? fullDate(status.startedOn) : fullDate(terms.startDate)}</span>
         </span>
         <span>
           <span className="k">Ends</span>
-          <span className="v">{status.endsOn ? mediumDate(status.endsOn) : '—'}</span>
+          <span className="v">{status.endsOn ? fullDate(status.endsOn) : '—'}</span>
         </span>
         <span>
           <span className="k">Price</span>
@@ -362,7 +363,7 @@ function ProgramBox({ center, session }: { center: Center; session: Session }) {
       </div>
       <p className="sub">
         {status.delivered} of {status.total} sessions done
-        {pushed && ` · pushed back from ${mediumDate(status.plannedEnd!)} by changes`}
+        {pushed && ` · pushed back from ${fullDate(status.plannedEnd!)} by changes`}
         {status.needsMakeUp > 0 && ` · ${plural(status.needsMakeUp, 'cancelled session')} still need${status.needsMakeUp === 1 ? 's' : ''} a make-up date`}
         {endingSoon(status, state.today) && ' · ending soon: time to talk renewal'}
       </p>
@@ -476,7 +477,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
             e.preventDefault()
             run(() => {
               if (date && !isWorkday(date)) throw new LifecycleError('Sessions run Monday to Saturday.')
-              const newId = reschedule(user, s.id, date, start, end)
+              const newId = reschedule(user, s.id, date, start, end, note)
               setParams(route, { s: newId })
             }, s.assignments.length ? 'Rescheduled. The coaching staff was texted to re-confirm.' : 'Rescheduled.')
           }}
@@ -493,6 +494,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
             End
             <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
+          <NoteBox value={note} onChange={setNote} label="Note (optional)" placeholder="Why it moved, e.g. field trip that day" />
           <button className="btn primary" disabled={!date}>
             Reschedule
           </button>
@@ -519,15 +521,25 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
               ))}
             </select>
           </label>
-          <label className="field grow">
-            Note {reason === 'other' ? '(required)' : '(optional)'}
-            <input value={note} onChange={(e) => setNote(e.target.value)} required={reason === 'other'} />
-          </label>
+          <NoteBox value={note} onChange={setNote} label={`Note ${reason === 'other' ? '(required)' : '(optional)'}`} required={reason === 'other'} />
           <button className="btn danger" disabled={!reason}>
             Cancel session
           </button>
         </form>
       )}
     </section>
+  )
+}
+
+/** A note with its length limit shown as you type. */
+function NoteBox({ value, onChange, label, placeholder, required }: { value: string; onChange: (v: string) => void; label: string; placeholder?: string; required?: boolean }) {
+  return (
+    <label className="field note-box">
+      {label}
+      <textarea rows={2} maxLength={NOTE_MAX} value={value} placeholder={placeholder} required={required} onChange={(e) => onChange(e.target.value)} />
+      <small className={`counter ${value.length > NOTE_MAX - 30 ? 'warn' : ''}`}>
+        {value.length} / {NOTE_MAX} characters
+      </small>
+    </label>
   )
 }

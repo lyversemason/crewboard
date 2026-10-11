@@ -6,8 +6,19 @@ import type { CoachLevel, SessionStatus, Violation } from '../engine'
 import { LEVEL_LABEL, STATUS_LABEL, shortWarning, smsHref, telHref } from './format'
 import { useGuide } from './guide'
 
+const STATUS_TIP: Record<SessionStatus, string> = {
+  pending: 'Not yet confirmed with the facility',
+  confirmed: 'Confirmed with the facility',
+  rescheduled: 'Moved to another date (kept on file)',
+  cancelled: 'Cancelled (kept on file with its reason)',
+}
+
 export function StatusPill({ status }: { status: SessionStatus }) {
-  return <span className={`pill status-${status}`}>{STATUS_LABEL[status]}</span>
+  return (
+    <span className={`pill status-${status}`} title={STATUS_TIP[status]}>
+      {STATUS_LABEL[status]}
+    </span>
+  )
 }
 
 export function LevelTag({ level }: { level: CoachLevel }) {

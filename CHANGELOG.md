@@ -3,6 +3,48 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.1.0 (2026-10-11 00:30 ET): review round 4
+
+**Sales intake**
+- Address search: start typing and pick the right address from a list (free
+  OpenStreetMap search, no account or key, so it can never cost anything). City, state
+  and ZIP fill in. Typing it by hand is still there as a fallback.
+- Each weekday has its own first date, start and end time, and its own groups
+  ("Thursday groups", "Friday groups"), so Fridays can start a week after Thursdays.
+  A first date that isn't on its weekday is refused.
+- One cycle price at the bottom for the whole package, with the per-session math.
+- Phone numbers format themselves (5025999296 → 502-599-9296); ext. is optional.
+- Emails must be real: candyqueen@gmail.con is refused with "did you mean gmail.com?".
+  Wrong fields are outlined in red with a message, like any web form.
+- Longer cycles: 10 and 16 weeks.
+
+**Sessions**
+- Reschedules take a note too; notes show a 300-character limit as you type.
+- Status badges explain themselves on hover (e.g. "Confirmed with the facility").
+
+**Calendar**
+- Day view: one day, every territory side by side, arrows step a day at a time;
+  click a day name in the week view to jump to it.
+
+**Look**
+- Dates spelled out everywhere ("October 12, 2026 – October 24, 2026"), in charcoal.
+- Cards and panels a shade grayer so colors stand out.
+- Light tan as the counterweight: day headers, table day bars, unavailable hours,
+  intake section labels, the coach phone's day labels. The field being edited turns
+  light blue.
+- No gold. Red = a problem (needs coaching staff, no coach assigned, coaches who
+  haven't confirmed), yellow = pending ("Pending" replaces "Not yet"), plum = rule issues.
+- Alternating row colors in tables and lists.
+- Coach picker on the start page: pick the territory, then the coach.
+
+**Demo data + tests**
+- A Thursday + Friday program whose first three Thursdays were cancelled and made up at
+  the end; Clover Patch's signed program starts Fridays a week after Thursdays.
+- 181 tests (was 158): multi-day programs at 8/10/12/16 weeks with reschedules, the
+  cancelled-Thursdays case, per-day start dates, phone and email checks, address results.
+
+Note: saved demo data from older versions is reset once (new storage key).
+
 ## v2.0.1 (2026-10-10 23:05 ET): more color, less white
 
 - More gray-blue: a blue header bar, blue-gray tabs, column headers, day headers, card

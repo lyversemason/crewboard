@@ -30,8 +30,8 @@ await shot('6-admin', 'admin/dashboard', { height: 760 })
 await shot('5-coach', '', {
   width: 430,
   height: 820,
-  // The login page pre-selects the busiest coach; open them.
-  before: async (p) => p.locator('.coach-card .role-cta').click(),
+  // The login page opens on the busiest coach's territory; open the first coach.
+  before: async (p) => p.locator('.coach-pick a').first().click(),
 })
 
 // Session with its program cycle and a coach who hasn't confirmed.
@@ -59,26 +59,26 @@ await shot('4-override-dialog', 'tm-lou/calendar', {
   },
 })
 
-// Sales intake: blocked, then covered after taking a suggested slot.
+// Sales intake: a Tuesday + Thursday program, blocked, then covered.
+// The address is typed by hand so the screenshots don't depend on the live address search.
 {
   const p = await page(1440, 1000)
   await p.goto(BASE + '#/rep-east/intake')
   await p.getByLabel('Center / facility name').fill('Acorn Hill Preschool')
+  await p.getByRole('button', { name: /Enter the address by hand/ }).click()
+  await p.getByLabel('Street address').fill('1234 maple ridge drive')
   await p.getByLabel('ZIP').selectOption('40205')
-  const sat = await p.evaluate(() => {
-    const d = new Date()
-    d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7))
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })
-  await p.getByLabel('Starting').fill(sat)
-  await p.getByRole('button', { name: 'Tue', exact: true }).click()
-  await p.getByRole('button', { name: 'Sat', exact: true }).click()
-  await p.getByLabel('Cycle price ($)').fill('1440')
-  await p.getByLabel('Group 1 kids').fill('40')
+  await p.getByRole('button', { name: 'Thu', exact: true }).click()
+  await p.getByLabel('Cycle price ($)').fill('2880')
+  // A late start with a huge group: not enough coaches are free.
+  await p.locator('.program-day').first().getByLabel('Start time').fill('17:00')
+  await p.getByLabel('Tuesday group 1 kids').fill('40')
+  await p.locator('legend', { hasText: 'Program terms' }).scrollIntoViewIfNeeded()
   await p.waitForTimeout(250)
   await p.screenshot({ path: `${OUT}/7-intake-blocked.png` })
-  await p.locator('.suggestion').first().click()
-  await p.getByLabel('Group 1 kids').fill('22')
+  await p.getByLabel('Tuesday group 1 kids').fill('12')
+  await p.locator('.program-day').first().getByLabel('Start time').fill('10:00')
+  await p.locator('legend', { hasText: 'Program terms' }).scrollIntoViewIfNeeded()
   await p.waitForTimeout(250)
   await p.screenshot({ path: `${OUT}/8-intake-covered.png` })
 }
