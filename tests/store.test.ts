@@ -1,10 +1,11 @@
 // Store actions: the rules can't be skipped from the UI layer either.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { LifecycleError, NOTE_MAX, hasBlock, planBulk, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
+import { LifecycleError, NOTE_MAX, canConfirmShift, hasBlock, planBulk, isAvailable, openIssues, validateCrew, weekdayOf } from '../src/engine'
 import type { ProgramDay, Weekday } from '../src/engine'
 import {
   addTimeOff,
+  coachConfirmMany,
   confirmProgramWithFacility,
   confirmWithFacility,
   getState,
@@ -357,3 +358,23 @@ describe('bulk staffing a program', () => {
     expect(() => staffOpenSessions(tm(), clover()[0].id)).toThrow(/Save a coaching staff/)
   })
 })
+
+describe('coach confirmations open the Sunday before', () => {
+  it('a coach can’t confirm a shift weeks ahead, even by skipping the screen', () => {
+    const st = getState()
+    const coachUser = st.users.find((u) => u.role === 'coach' && st.sessions.some((s) => s.date > addWeeks(st.today, 3) && s.assignments.some((a) => a.coachId === u.coachId && !a.confirmedByCoach)))!
+    const far = st.sessions.find((s) => s.date > addWeeks(st.today, 3) && s.assignments.some((a) => a.coachId === coachUser.coachId && !a.confirmedByCoach))!
+    expect(() => coachConfirmMany(coachUser, [far.id])).toThrow(/the Sunday before its week/)
+  })
+
+  it('the demo data has no confirmations beyond the open window', () => {
+    const st = getState()
+    for (const s of st.sessions) if (s.date >= st.today && !canConfirmShift(s.date, st.today)) expect(s.assignments.every((a) => !a.confirmedByCoach)).toBe(true)
+  })
+})
+
+function addWeeks(date: string, n: number) {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 7 * n)
+  return d.toISOString().slice(0, 10)
+}

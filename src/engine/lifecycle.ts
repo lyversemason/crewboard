@@ -2,7 +2,7 @@
 // There is deliberately no delete. Rescheduling keeps the original record and
 // creates a linked new one; cancelling keeps the record with a reason code.
 
-import { slotLabel } from './time'
+import { addDays, fullDate, mondayOf, slotLabel } from './time'
 import { CANCEL_REASONS } from './types'
 import type { CancelReason, Session } from './types'
 
@@ -94,8 +94,23 @@ export function cancelSession(s: Session, reason: CancelReason, note: string, by
 }
 
 /** A coach confirms they will work an assigned session. */
-export function coachConfirm(s: Session, coachId: string, at: string): Session {
+/**
+ * Coaches confirm a week's shifts from the Sunday before it (the work week
+ * starts Monday), not weeks ahead: plans change, and a confirmation only means
+ * something close to the day.
+ */
+export function confirmOpensOn(date: string): string {
+  return addDays(mondayOf(date), -1)
+}
+
+export function canConfirmShift(date: string, today: string): boolean {
+  return today >= confirmOpensOn(date) && date >= today
+}
+
+export function coachConfirm(s: Session, coachId: string, at: string, today: string): Session {
   if (s.status === 'cancelled' || s.status === 'rescheduled') throw new LifecycleError('This session is no longer running.')
+  if (s.date < today) throw new LifecycleError('This shift has already happened.')
+  if (!canConfirmShift(s.date, today)) throw new LifecycleError(`You can confirm this shift from ${fullDate(confirmOpensOn(s.date))}, the Sunday before its week.`)
   if (!s.assignments.some((a) => a.coachId === coachId)) throw new LifecycleError('You are not assigned to this session.')
   return {
     ...s,

@@ -20,6 +20,8 @@ import {
   planBulk,
   programWeekdays,
   WEEKDAY_LONG,
+  confirmOpensOn,
+  weekdayMonthDay,
 } from '../engine'
 import type { BulkScope, CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
@@ -226,6 +228,10 @@ function Panel({ user, session: s, close, toast }: { user: User; session: Sessio
                     <span className="confirm-new">Not saved yet</span>
                   ) : a.confirmedByCoach ? (
                     <span className="confirm-ok">✓ Coach confirmed</span>
+                  ) : state.today < confirmOpensOn(s.date) ? (
+                    <span className="confirm-new" title="Coaches confirm from the Sunday before the week">
+                      Confirms from {weekdayMonthDay(confirmOpensOn(s.date))}
+                    </span>
                   ) : (
                     <UnconfirmedAlert name={c.name} phone={c.phone} />
                   )}

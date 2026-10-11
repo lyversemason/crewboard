@@ -243,7 +243,7 @@ export function cancel(user: User, id: string, reason: CancelReason, note: strin
 export function coachConfirmMany(user: User, ids: string[]) {
   if (user.role !== 'coach' || !user.coachId) throw new LifecycleError('Only coaches confirm their own shifts.')
   const at = now()
-  replaceSessions(ids.map((id) => coachConfirm(findSession(id), user.coachId!, at)))
+  replaceSessions(ids.map((id) => coachConfirm(findSession(id), user.coachId!, at, state.today)))
 }
 
 // ---------------------------------------------------------------- coaches

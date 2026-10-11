@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addDays, cycleStatus, endingSoon, fullDate, mondayOf, dateSpan, planningWeek, openIssues, prettyDate, prettyTime } from '../engine'
+import { addDays, cycleStatus, endingSoon, fullDate, mondayOf, dateSpan, planningWeek, openIssues, prettyDate, prettyTime, confirmOpensOn } from '../engine'
 import type { Settings, User } from '../engine'
 import { href } from '../router'
 import { updateSettings, useStore, worldOf } from '../store'
@@ -21,7 +21,7 @@ export function AdminDashboard({ user }: { user: User }) {
       total: live.length,
       unassigned: upcoming.filter((s) => !s.assignments.length).length,
       pending: upcoming.filter((s) => s.status === 'pending').length,
-      unconfirmed: upcoming.filter((s) => s.assignments.some((a) => !a.confirmedByCoach)).length,
+      unconfirmed: upcoming.filter((s) => state.today >= confirmOpensOn(s.date) && s.assignments.some((a) => !a.confirmedByCoach)).length,
       issues: upcoming.filter((s) => openIssues(s, world).length).length,
       overrides: live.filter((s) => s.overrides.length).length,
       coaches: state.coaches.filter((c) => c.territoryId === t.id && c.active).length,

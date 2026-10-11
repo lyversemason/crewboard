@@ -3,6 +3,18 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.3.0 (2026-10-11 03:00 ET): confirmations open the Sunday before
+
+- Coaches can only confirm a shift from the Sunday before its week (the work week starts
+  Monday). Before that the phone shows "Confirm from October 18" and a short note why:
+  plans change, so a confirmation only means something close to the week. The rule is in
+  the engine, so it holds even if the screen were skipped.
+- Managers no longer see the red "coach hasn't confirmed" flag on shifts whose week
+  hasn't opened yet; the session panel says "Confirms from Sunday, October 18" instead,
+  and the dashboard's "Coach unconfirmed" count only counts open weeks.
+- Demo data follows the same rule.
+- 192 tests (was 188).
+
 ## v2.2.1 (2026-10-11 02:30 ET): review round 6
 
 - Section labels: the user picked tan E (greige); every label, day bar and coach-phone

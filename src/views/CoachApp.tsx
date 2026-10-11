@@ -1,7 +1,7 @@
 // The coach's phone view: only their own shifts, plus a territory directory.
 
 import { useState } from 'react'
-import { addDays, hasConfirmedWeek, longDate, weekdayMonthDay, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, dateSpan, dayOfWeek } from '../engine'
+import { addDays, hasConfirmedWeek, longDate, weekdayMonthDay, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, dateSpan, dayOfWeek, canConfirmShift, confirmOpensOn, monthDay } from '../engine'
 import type { Coach, Session, User, Weekday } from '../engine'
 import { href, setParams, useRoute } from '../router'
 import { addTimeOff, coachConfirmMany, confirmAvailability, removeTimeOff, setAvailability, setWeekChange, useStore } from '../store'
@@ -58,7 +58,10 @@ function Shifts({ user }: { user: User }) {
   const week = route.params.get('w') ?? planningWeek(state.today)
   const weekEnd = addDays(week, 6)
   const mine = visibleSessions(user, state.sessions).filter((s) => s.date >= week && s.date <= weekEnd)
-  const toConfirm = mine.filter((s) => live(s) && s.date >= state.today && !s.assignments.find((a) => a.coachId === user.coachId)?.confirmedByCoach)
+  const toConfirm = mine.filter((s) => live(s) && canConfirmShift(s.date, state.today) && !s.assignments.find((a) => a.coachId === user.coachId)?.confirmedByCoach)
+  // Future weeks open for confirming on the Sunday before them.
+  const opensOn = confirmOpensOn(week)
+  const notYet = state.today < opensOn
   const coach = state.coaches.find((c) => c.id === user.coachId)!
   const [flash, setFlash] = useState('')
 
@@ -94,6 +97,7 @@ function Shifts({ user }: { user: User }) {
         </button>
       )}
       {flash && <p className="notice">{flash}</p>}
+      {notYet && byDay.size > 0 && <p className="callout soft small">You can confirm this week’s shifts from {weekdayMonthDay(opensOn)}, the Sunday before. Plans change, so confirmations only open close to the week.</p>}
 
       {byDay.size === 0 && <Empty>No shifts this week.</Empty>}
       {[...byDay.entries()].map(([date, sessions]) => (
@@ -119,12 +123,16 @@ function Shifts({ user }: { user: User }) {
                   <span className="flag muted">{s.status === 'cancelled' ? 'Cancelled' : 'Moved'}</span>
                 ) : me.confirmedByCoach ? (
                   <span className="flag ok">Confirmed ✓</span>
-                ) : s.rescheduledFromId && s.date >= state.today ? (
+                ) : s.rescheduledFromId && canConfirmShift(s.date, state.today) ? (
                   <button className="btn small save-override" onClick={() => coachConfirmMany(user, [s.id])} title="This session moved. Confirm the new time.">
                     Moved: confirm
                   </button>
                 ) : s.date < state.today ? (
                   <span className="flag muted">Past</span>
+                ) : !canConfirmShift(s.date, state.today) ? (
+                  <span className="flag muted" title="Confirmations open the Sunday before the week">
+                    Confirm from {monthDay(confirmOpensOn(s.date))}
+                  </span>
                 ) : (
                   <button className="btn small" onClick={() => coachConfirmMany(user, [s.id])}>
                     Confirm
@@ -225,6 +233,8 @@ function ShiftPackage({ user, id }: { user: User; id: string }) {
         <div className="sticky-action">
           {me.confirmedByCoach ? (
             <p className="ok-line">✓ You confirmed this shift</p>
+          ) : !canConfirmShift(s.date, state.today) ? (
+            <p className="muted small">You can confirm this shift from {weekdayMonthDay(confirmOpensOn(s.date))}, the Sunday before its week.</p>
           ) : (
             <button className="btn primary block" onClick={() => coachConfirmMany(user, [s.id])}>
               Confirm this shift

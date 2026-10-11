@@ -46,7 +46,7 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 | **Program cycles** | Every session shows "session 3 of 8" and the cycle's real end date, read from the sessions, so reschedules and make-ups push it out. Missing make-ups are flagged and cycles ending soon are listed for renewal. |
 | **Session lifecycle** | Pending → confirmed → rescheduled / cancelled. **Nothing is ever deleted**: a reschedule keeps the original, links a new session and texts the coaching staff to re-confirm; a cancellation needs a reason code. Both take an optional note (up to 300 characters). Every change is logged with who and when. |
 | **Territory manager views** | Week calendar with a one-day view (every territory side by side), a filterable table with live rule badges, plus Coaching Staff: click a coach to change level, pay rate or contact details (logged), and see availability and weekly check-ins read-only. |
-| **Coach phone view** | My shifts by day, a full shift package, tap-to-map, call and text buttons, confirm one shift or the whole week, a weekly "has your availability changed?" check-in, usual week, one-week changes and days off. |
+| **Coach phone view** | My shifts by day, a full shift package, tap-to-map, call and text buttons, confirm one shift or the whole week (confirmations open the Sunday before each week, never weeks ahead), a weekly "has your availability changed?" check-in, usual week, one-week changes and days off. |
 
 <table>
 <tr>
@@ -81,7 +81,7 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 188 automated tests cover the edge cases that matter in
+3. **Tests for every rule.** 192 automated tests cover the edge cases that matter in
    the field: a gap exactly equal to drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
    override, trainees don't count toward the ratio, a day off blocks only that day, a

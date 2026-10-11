@@ -7,6 +7,7 @@
 
 import {
   DEFAULT_SETTINGS,
+  canConfirmShift,
   addDays,
   checkCoverage,
   eligibleCoaches,
@@ -305,7 +306,7 @@ export function buildDemo(today: string): DemoData {
     if (trainee && r() < 0.25) withShadow.push(trainee)
     s.assignments = withShadow.map((c) => ({
       coachId: c.id,
-      confirmedByCoach: s.date < today || (s.date < addDays(planningWeek(today), 7) && r() < 0.6),
+      confirmedByCoach: s.date < today || (canConfirmShift(s.date, today) && r() < 0.6),
       confirmedAt: nowIso,
     }))
     for (const c of withShadow) load.set(c.id, (load.get(c.id) ?? 0) + 1)

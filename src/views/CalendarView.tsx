@@ -1,4 +1,4 @@
-import { addDays, dayOfWeek, longDate, mondayOf, monthDay, openIssues, planningWeek, prettyTime, weekRange, WEEKDAY_LONG } from '../engine'
+import { addDays, dayOfWeek, longDate, mondayOf, monthDay, openIssues, planningWeek, prettyTime, weekRange, WEEKDAY_LONG, confirmOpensOn } from '../engine'
 import type { Session, User } from '../engine'
 import { setParams } from '../router'
 import { worldOf } from '../store'
@@ -133,7 +133,8 @@ function EventCard({ s, state, showTerritory, onOpen }: { s: Session; state: Sta
   const center = state.centers.find((c) => c.id === s.centerId)!
   const open = s.date >= state.today ? openIssues(s, worldOf(state)) : []
   const closed = s.status === 'cancelled' || s.status === 'rescheduled'
-  const unconfirmed = s.assignments.filter((a) => !a.confirmedByCoach).length
+  // Coaches can only confirm from the Sunday before the week, so earlier it isn't a problem yet.
+  const unconfirmed = state.today >= confirmOpensOn(s.date) ? s.assignments.filter((a) => !a.confirmedByCoach).length : 0
   const needsStaff = !closed && !s.assignments.length
   return (
     <button className={`event status-${s.status} ${closed ? 'closed' : ''} ${needsStaff ? 'needs-staff' : ''}`} onClick={onOpen}>

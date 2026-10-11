@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as engine from '../src/engine'
-import { LifecycleError, cancelSession, coachConfirm, confirmSession, rescheduleSession } from '../src/engine'
+import { LifecycleError, canConfirmShift, cancelSession, coachConfirm, confirmOpensOn, confirmSession, rescheduleSession } from '../src/engine'
 import { crew, session } from './fixtures'
 
 const AT = '2026-10-10T20:00:00Z'
@@ -63,11 +63,26 @@ describe('session lifecycle', () => {
 
 describe('coach confirmation', () => {
   it('marks only that coach confirmed', () => {
-    const s = coachConfirm(session('s', { assignments: crew('lead1', 'asst1') }), 'asst1', AT)
+    // The fixture session is Monday 2026-10-12; the Sunday before is the 11th.
+    const s = coachConfirm(session('s', { assignments: crew('lead1', 'asst1') }), 'asst1', AT, '2026-10-11')
     expect(s.assignments.map((a) => a.confirmedByCoach)).toEqual([false, true])
   })
 
   it('refuses a coach who is not assigned', () => {
-    expect(() => coachConfirm(session('s', { assignments: crew('lead1') }), 'asst1', AT)).toThrow(LifecycleError)
+    expect(() => coachConfirm(session('s', { assignments: crew('lead1') }), 'asst1', AT, '2026-10-11')).toThrow(LifecycleError)
+  })
+
+  it('opens on the Sunday before the shift’s week, not weeks ahead', () => {
+    expect(confirmOpensOn('2026-10-15')).toBe('2026-10-11') // Thursday -> the Sunday before
+    expect(canConfirmShift('2026-10-15', '2026-10-10')).toBe(false) // Saturday: still too early
+    expect(canConfirmShift('2026-10-15', '2026-10-11')).toBe(true) // Sunday: open
+    expect(canConfirmShift('2026-10-15', '2026-10-14')).toBe(true) // during the week
+    expect(canConfirmShift('2026-10-22', '2026-10-14')).toBe(false) // next week: not yet
+    expect(canConfirmShift('2026-10-12', '2026-10-13')).toBe(false) // already happened
+  })
+
+  it('refuses a shift whose week hasn’t opened, saying when it will', () => {
+    const later = session('s', { date: '2026-11-12', assignments: crew('lead1') })
+    expect(() => coachConfirm(later, 'lead1', AT, '2026-10-11')).toThrow('You can confirm this shift from November 8, 2026, the Sunday before its week.')
   })
 })
