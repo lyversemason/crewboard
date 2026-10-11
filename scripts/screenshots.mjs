@@ -67,7 +67,9 @@ await shot('4-override-dialog', 'tm-lou/calendar', {
   await p.getByLabel('Center / facility name').fill('Acorn Hill Preschool')
   await p.getByRole('button', { name: /Enter the address by hand/ }).click()
   await p.getByLabel('Street address').fill('1234 maple ridge drive')
-  await p.getByLabel('ZIP').selectOption('40205')
+  await p.getByLabel('City').fill('Louisville')
+  await p.getByLabel('State').fill('KY')
+  await p.getByLabel('ZIP').fill('40205')
   await p.getByRole('button', { name: 'Thu', exact: true }).click()
   await p.getByLabel('Cycle price ($)').fill('2880')
   // A late start with a huge group: not enough coaches are free.

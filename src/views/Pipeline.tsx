@@ -3,9 +3,9 @@
 // ops admin can correct the price after signing.
 
 import { useState } from 'react'
-import { canEditTerms, canSeeMoney, cycleStatus, fullDate, prettyDate, prettyTime, sessionsInCycle, toMinutes, visibleIntakes, scheduleLabel } from '../engine'
+import { canAssign, canEditTerms, canSeeMoney, cycleStatus, fullDate, prettyDate, prettyTime, sessionsInCycle, toMinutes, visibleIntakes, scheduleLabel } from '../engine'
 import type { Center, User } from '../engine'
-import { updateTerms } from '../store'
+import { confirmProgramWithFacility, updateTerms } from '../store'
 import { Empty, Hint, StatusPill, Toast } from '../ui/bits'
 import { money } from '../ui/format'
 import { openSession, useScope } from './scope'
@@ -31,6 +31,10 @@ export function Pipeline({ user }: { user: User }) {
           const rep = state.users.find((u) => u.id === intake.salesRepId)
           const sessions = state.sessions.filter((s) => s.intakeId === intake.id).sort((a, b) => a.date.localeCompare(b.date))
           const unstaffed = sessions.filter((s) => !s.assignments.length && (s.status === 'pending' || s.status === 'confirmed')).length
+          const upcoming = sessions.filter((s) => s.date >= state.today && (s.status === 'pending' || s.status === 'confirmed'))
+          const firstPending = upcoming.find((s) => s.status === 'pending')
+          const pendingCount = upcoming.filter((s) => s.status === 'pending').length
+          const firstOpen = upcoming.find((s) => !s.assignments.length)
           const status = center.terms ? cycleStatus(center.terms, state.sessions.filter((s) => s.centerId === center.id), state.today) : null
           return (
             <article key={intake.id} className="card">
@@ -41,7 +45,7 @@ export function Pipeline({ user }: { user: User }) {
                     {center.address} · signed by {rep?.name ?? 'unknown'} on {fullDate(intake.submittedAt.slice(0, 10))}
                   </p>
                 </div>
-                {unstaffed > 0 ? <span className="flag pending">{unstaffed} need coaching staff</span> : <span className="flag ok">Staffed</span>}
+                {unstaffed > 0 ? <span className="flag bad">{unstaffed} need coaching staff</span> : <span className="flag ok">Staffed</span>}
               </header>
               {status && (
                 <p className="small">
@@ -61,6 +65,25 @@ export function Pipeline({ user }: { user: User }) {
                   </li>
                 ))}
               </ul>
+              <div className="actions pipeline-actions">
+                {pendingCount > 0 && canAssign(user, center.territoryId) && (
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      const n = confirmProgramWithFacility(user, firstPending!.id)
+                      setToast(`Confirmed ${n} session${n === 1 ? '' : 's'} with the facility.`)
+                    }}
+                  >
+                    Confirm all {pendingCount} with the facility
+                  </button>
+                )}
+                {firstOpen && canAssign(user, center.territoryId) && (
+                  <button className="btn primary" onClick={() => openSession(route, firstOpen.id)}>
+                    Staff the first open session →
+                  </button>
+                )}
+              </div>
+              <Hint>Staff one session, then add the same coaches to every session of the program they can work, in one click.</Hint>
               {canSeeMoney(user) && center.terms && (
                 <Terms
                   user={user}

@@ -24,7 +24,8 @@ import {
   WEEKDAY_LONG,
 } from '../engine'
 import type { CoverageRequest, CycleWeeks, Group, Intake, ProgramDay, SpaceProfile, User, Weekday } from '../engine'
-import { CITY, ZIPS, standardizeAddress } from '../data/places'
+import { CITY, handAddress } from '../data/places'
+import type { HandAddress } from '../data/places'
 import { href, useRoute } from '../router'
 import { getState, submitIntake, updateIntake, useStore, worldOf } from '../store'
 import type { IntakeInput } from '../store'
@@ -90,8 +91,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const [phone, setPhone] = useState(existing?.phone ?? '')
   const [picked, setPicked] = useState<PickedAddress | null>(existing ? pickedFrom(existing.address, existing.lat, existing.lng) : null)
   const [manual, setManual] = useState(false)
-  const [street, setStreet] = useState('')
-  const [zip, setZip] = useState('')
+  const [hand, setHand] = useState<HandAddress>({ street: '', city: '', state: '', zip: '' })
   const [poc, setPoc] = useState({ name: '', title: 'Center Director', email: '', phone: '', ext: '', ...existing?.poc, ...(existing && { ext: existing.poc.ext ?? '' }) })
   const [weeks, setWeeks] = useState<CycleWeeks>(existing?.terms?.cycleWeeks ?? 8)
   const [days, setDays] = useState<DayDraft[]>(
@@ -110,9 +110,11 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const show = (f: Field) => tried || touched.has(f)
 
   // Where the center is: from the address search, or typed by hand with a listed ZIP.
-  const manualPlace = ZIPS[territoryId]?.find((z) => z.zip === zip)
-  const manualAddress = standardizeAddress(street, territoryId, zip)
-  const location = manual ? (manualAddress && manualPlace ? { address: manualAddress, lat: manualPlace.lat, lng: manualPlace.lng } : null) : picked ? { address: addressLine(picked), lat: picked.lat, lng: picked.lng } : null
+  const typed = useMemo(() => handAddress(hand, territoryId, territory.center), [hand, territoryId, territory.center])
+  const location = useMemo(
+    () => (manual ? ('problem' in typed ? null : typed) : picked ? { address: addressLine(picked), lat: picked.lat, lng: picked.lng } : null),
+    [manual, typed, picked],
+  )
 
   const sorted = useMemo(() => [...days].sort((a, b) => a.weekday - b.weekday), [days])
   const problems = useMemo(() => sorted.map((d) => dayProblems(d, state.today)), [sorted, state.today])
@@ -142,7 +144,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const errors: Record<Field, string | null> = {
     name: name.trim() ? null : 'Enter the center’s name.',
     phone: !phone.trim() ? 'Enter the center’s main phone.' : isValidPhone(phone) ? null : 'Enter a 10-digit phone number, like 502-555-0123.',
-    address: location ? null : manual ? 'Enter the street address and pick its ZIP.' : 'Search for the address and pick it from the list.',
+    address: location ? null : manual && 'problem' in typed ? typed.problem : 'Search for the address and pick it from the list.',
     pocName: poc.name.trim() ? null : 'Enter the contact’s name.',
     email: emailProblem(poc.email),
     pocPhone: !poc.phone.trim() || isValidPhone(poc.phone) ? null : 'Enter a 10-digit phone number, like 502-555-0148.',
@@ -219,7 +221,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   return (
     <div className="intake">
       <form className="intake-form" onSubmit={(e) => e.preventDefault()} noValidate>
-        <fieldset>
+        <fieldset className="tan-a">
           <legend>Sales identification</legend>
           <div className="row">
             <label className="field">
@@ -228,7 +230,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
             </label>
             <label className="field">
               Territory
-              <select value={territoryId} onChange={(e) => (setTerritoryId(e.target.value), setZip(''), setPicked(null))}>
+              <select value={territoryId} onChange={(e) => (setTerritoryId(e.target.value), setHand({ ...hand, state: '' }), setPicked(null))}>
                 {territories.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}, {t.state}
@@ -239,7 +241,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset className="tan-b">
           <legend>Facility</legend>
           <div className="row">
             <label className="field grow">
@@ -276,22 +278,30 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
               <div className="row">
                 <label className="field grow">
                   Street address
-                  <input value={street} className={cls('address')} onChange={(e) => setStreet(e.target.value)} onBlur={() => touch('address')} placeholder="1234 maple ridge drive" />
+                  <input value={hand.street} className={cls('address')} onChange={(e) => setHand({ ...hand, street: e.target.value })} placeholder="1234 Maple Ridge Dr" />
                 </label>
-                <label className="field">
+              </div>
+              <div className="row">
+                <label className="field grow">
+                  City
+                  <input value={hand.city} className={cls('address')} onChange={(e) => setHand({ ...hand, city: e.target.value })} placeholder={territory.name} />
+                </label>
+                <label className="field narrow">
+                  State
+                  <input value={hand.state} className={cls('address')} maxLength={2} onChange={(e) => setHand({ ...hand, state: e.target.value.toUpperCase() })} placeholder={territory.state} />
+                </label>
+                <label className="field narrow">
                   ZIP
-                  <select value={zip} className={cls('address')} onChange={(e) => (setZip(e.target.value), touch('address'))}>
-                    <option value="">Choose…</option>
-                    {ZIPS[territoryId]?.map((z) => (
-                      <option key={z.zip} value={z.zip}>
-                        {z.zip} · {z.area}
-                      </option>
-                    ))}
-                  </select>
+                  <input value={hand.zip} className={cls('address')} maxLength={5} inputMode="numeric" onChange={(e) => setHand({ ...hand, zip: e.target.value.replace(/\D/g, '') })} onBlur={() => touch('address')} />
                 </label>
               </div>
               <FieldError show={show('address')} message={errors.address} />
-              <p className={`small ${manualAddress ? 'ok' : 'muted'}`}>{manualAddress ? `Standardized: ${manualAddress}` : 'Typed by hand: the center is placed at the middle of its ZIP code.'}</p>
+              {!('problem' in typed) && (
+                <p className="small ok">
+                  ✓ {typed.address}
+                  {typed.approximate && <span className="muted"> · placed at the middle of {territory.name}, so drive times are approximate</span>}
+                </p>
+              )}
               <button type="button" className="linklike small" onClick={() => setManual(false)}>
                 Search for the address instead
               </button>
@@ -299,7 +309,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           )}
         </fieldset>
 
-        <fieldset>
+        <fieldset className="tan-c">
           <legend>Point of contact</legend>
           <div className="row">
             <label className="field grow">
@@ -330,7 +340,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset className="tan-d">
           <legend>Program terms</legend>
           <div className="row">
             <label className="field">
@@ -422,7 +432,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           const setGroups = (groups: Group[]) => setDay(d.weekday, { groups })
           const setGroup = (i: number, patch: Partial<Group>) => setGroups(d.groups.map((g, j) => (i === j ? { ...g, ...patch } : g)))
           return (
-            <fieldset key={d.weekday}>
+            <fieldset key={d.weekday} className="tan-e">
               <legend>{sorted.length > 1 ? `${WEEKDAY_LONG[d.weekday]} groups` : 'Groups'}</legend>
               {di > 0 && (
                 <button type="button" className="btn ghost small same-as" onClick={() => setGroups(sorted[0].groups.map((g) => ({ ...g })))}>
@@ -478,7 +488,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
           )
         })}
 
-        <fieldset>
+        <fieldset className="tan-f">
           <legend>Space</legend>
           <div className="row">
             <div className="seg" role="group" aria-label="Space category">

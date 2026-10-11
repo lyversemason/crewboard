@@ -16,10 +16,16 @@ import {
   sessionsInCycle,
   validateCrew,
   scheduleLabel,
+  openSessionsLike,
+  pendingSessionsLike,
+  prettyDate,
+  programWeekdays,
+  WEEKDAY_LONG,
 } from '../engine'
-import type { CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
+import type { BulkScope, CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
-import { cancel, confirmWithFacility, reschedule, saveCrew, useStore, worldOf } from '../store'
+import { cancel, confirmProgramWithFacility, confirmWithFacility, reschedule, saveCrew, staffOpenSessions, useStore, worldOf } from '../store'
+import type { BulkResult } from '../store'
 import { Hint, IssueList, LevelTag, Modal, Phone, StatusPill, Toast, UnconfirmedAlert } from '../ui/bits'
 import { mapHref, money, movedTo } from '../ui/format'
 
@@ -275,6 +281,7 @@ function Panel({ user, session: s, close, toast }: { user: User; session: Sessio
           </div>
         )}
         {error && <p className="error">{error}</p>}
+        {editable && !dirty && s.assignments.length > 0 && <BulkStaff user={user} s={s} toast={toast} />}
       </section>
 
       {editable && <Lifecycle user={user} s={s} run={run} />}
@@ -445,6 +452,9 @@ function RuleChecks({ session, crew, violations, overridden }: { session: Sessio
 
 function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => void, done?: string) => void }) {
   const route = useRoute()
+  const state = useStore()
+  const pendingOthers = pendingSessionsLike(s, state.sessions, state.today).length
+  const pendingAll = pendingOthers + (s.status === 'pending' ? 1 : 0)
   const [mode, setMode] = useState<'' | 'reschedule' | 'cancel'>('')
   const [date, setDate] = useState('')
   const [start, setStart] = useState(s.start)
@@ -459,6 +469,11 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
         {s.status === 'pending' && (
           <button className="btn" onClick={() => run(() => confirmWithFacility(user, s.id), 'Confirmed with the facility.')}>
             Mark confirmed with facility
+          </button>
+        )}
+        {pendingOthers > 0 && (
+          <button className="btn" onClick={() => run(() => confirmProgramWithFacility(user, s.id), `Confirmed ${pendingAll} sessions with the facility.`)}>
+            Confirm all {pendingAll} pending in this program
           </button>
         )}
         <button className={`btn ${mode === 'reschedule' ? 'on' : ''}`} onClick={() => setMode(mode === 'reschedule' ? '' : 'reschedule')}>
@@ -541,5 +556,72 @@ function NoteBox({ value, onChange, label, placeholder, required }: { value: str
         {value.length} / {NOTE_MAX} characters
       </small>
     </label>
+  )
+}
+
+/**
+ * After staffing one session: add the same coaches to every other open session
+ * of the program they can work (or one weekday's). The rest stay open.
+ */
+function BulkStaff({ user, s, toast }: { user: User; s: Session; toast: (msg: string) => void }) {
+  const state = useStore()
+  const route = useRoute()
+  const [result, setResult] = useState<BulkResult | null>(null)
+  const open = openSessionsLike(s, state.sessions, state.today)
+  const days = programWeekdays(s, state.sessions, state.today)
+  const names = s.assignments.map((a) => state.coaches.find((c) => c.id === a.coachId)?.name.split(' ')[0]).join(' & ')
+  const byId = (id: string) => state.sessions.find((x) => x.id === id)!
+
+  const apply = (scope: BulkScope) => {
+    const r = staffOpenSessions(user, s.id, scope)
+    setResult(r)
+    toast(`Added ${names} to ${r.filled.length} session${r.filled.length === 1 ? '' : 's'}.${r.skipped.length ? ` ${r.skipped.length} left open.` : ''}`)
+  }
+
+  if (!open.length && !result) return null
+  return (
+    <div className="bulk">
+      {open.length > 0 && (
+        <>
+          <p>
+            <strong>{open.length}</strong> other session{open.length === 1 ? '' : 's'} of this program {open.length === 1 ? 'has' : 'have'} no coaching staff. Add {names} wherever they’re free:
+          </p>
+          <div className="actions">
+            <button className="btn primary" onClick={() => apply('program')}>
+              All open sessions ({open.length})
+            </button>
+            {days.length > 1 &&
+              days.map((d) => {
+                const n = openSessionsLike(s, state.sessions, state.today, d).length
+                return (
+                  n > 0 && (
+                    <button key={d} className="btn" onClick={() => apply(d)}>
+                      {WEEKDAY_LONG[d]}s only ({n})
+                    </button>
+                  )
+                )
+              })}
+          </div>
+          <Hint>Every session is checked with the full rules. Nothing is overridden in bulk: a session that would need an override stays open for you to decide.</Hint>
+        </>
+      )}
+      {result && result.skipped.length > 0 && (
+        <div className="bulk-left">
+          <p className="small">
+            <strong>Left open ({result.skipped.length}):</strong> open one, pick other coaches, and add them to the rest the same way.
+          </p>
+          <ul>
+            {result.skipped.map(({ id, reason }) => (
+              <li key={id}>
+                <button className="linklike" onClick={() => setParams(route, { s: id })}>
+                  {prettyDate(byId(id).date)} {prettyTime(byId(id).start)}
+                </button>{' '}
+                <small className="muted">{reason}</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }

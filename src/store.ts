@@ -23,12 +23,15 @@ import {
   plannedSessions,
   termsFromDays,
   mondayOf,
+  openSessionsLike,
+  pendingSessionsLike,
   rescheduleSession,
   slotLabel,
   todayLocal,
   validateCrew,
 } from './engine'
 import type {
+  BulkScope,
   CancelReason,
   Center,
   Coach,
@@ -167,6 +170,57 @@ export function saveCrew(user: User, sessionId: string, crewIds: string[], confi
     },
   ])
   return { ok: true }
+}
+
+export interface BulkResult {
+  filled: string[]
+  /** Sessions left open, with the reason in plain words. */
+  skipped: { id: string; reason: string }[]
+}
+
+/**
+ * Adds a saved coaching staff to every other open session of the same program
+ * (or only one weekday's). Each session is checked with the full rules, one
+ * after another, so the coaches never end up double-booked. Sessions that
+ * would need an override, or break a hard rule, are left open.
+ */
+export function staffOpenSessions(user: User, fromId: string, scope: BulkScope = 'program'): BulkResult {
+  const from = findSession(fromId)
+  requireManager(user, from)
+  const crewIds = from.assignments.map((a) => a.coachId)
+  if (!crewIds.length) throw new LifecycleError('Save a coaching staff on this session first.')
+  const at = now()
+  const names = crewIds.map(coachName).join(', ')
+  let world = worldOf(state)
+  const result: BulkResult = { filled: [], skipped: [] }
+  const updated: Session[] = []
+  for (const s of openSessionsLike(from, state.sessions, state.today, scope)) {
+    const problems = validateCrew(s, crewIds, world)
+    if (problems.length) {
+      result.skipped.push({ id: s.id, reason: problems[0].detail || problems[0].message })
+      continue
+    }
+    const next: Session = {
+      ...s,
+      assignments: crewIds.map((id) => ({ coachId: id, confirmedByCoach: false })),
+      history: [...s.history, { at, by: user.name, text: `Coaching staff set: ${names} (added to the whole program from ${slotLabel(from.date, from.start, from.end)})` }],
+    }
+    updated.push(next)
+    result.filled.push(s.id)
+    world = { ...world, sessions: world.sessions.map((x) => (x.id === s.id ? next : x)) }
+  }
+  if (updated.length) replaceSessions(updated)
+  return result
+}
+
+/** Marks every pending upcoming session of a program as confirmed with the facility. */
+export function confirmProgramWithFacility(user: User, fromId: string): number {
+  const from = findSession(fromId)
+  requireManager(user, from)
+  const at = now()
+  const targets = [...(from.status === 'pending' ? [from] : []), ...pendingSessionsLike(from, state.sessions, state.today)]
+  replaceSessions(targets.map((s) => confirmSession(s, user.name, at)))
+  return targets.length
 }
 
 function requireManager(user: User, s: Session) {

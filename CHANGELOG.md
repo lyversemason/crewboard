@@ -3,6 +3,34 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.2.0 (2026-10-11 01:45 ET): review round 5
+
+**Bulk staffing**
+- Staff one session, then "All open sessions (N)" adds the same coaches to every other
+  open session of that program they can work; with more than one day a week there are
+  "Mondays only" / "Thursdays only" buttons too. Each session gets the full rule check,
+  one after another. Sessions they can't do (busy, not available, would need an
+  override) stay open and are listed with the reason, ready for the next coaches.
+- "Confirm all N pending in this program" next to "Mark confirmed with facility".
+- Sales pipeline cards: "Confirm all with the facility" and "Staff the first open
+  session"; the "need coaching staff" count is red.
+
+**Sales intake**
+- Entering the address by hand now means all of it: street, city, state, ZIP. A ZIP we
+  don't have on file is placed at the middle of the territory (drive times marked
+  approximate). "Search for the address instead" goes back to the address search.
+- Day buttons: no tan; unpicked days match the fields, picked days stay blue.
+- Section labels: six tan candidates, browner and lighter than before, one per section
+  (A sales identification, B facility, C point of contact, D program terms, E groups,
+  F space). TEMPORARY: once the user picks one, every label uses it.
+
+**Look**
+- Table day bars and the coach phone's day labels: one lighter tan, all the same shade
+  (some had a blue edge or a darker tan).
+- Coach phone directory rows alternate colors.
+
+188 tests (was 181): bulk staffing, bulk confirm, permissions, hand-typed addresses.
+
 ## v2.1.0 (2026-10-11 00:30 ET): review round 4
 
 **Sales intake**

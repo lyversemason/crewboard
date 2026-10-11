@@ -5,12 +5,14 @@ import { LifecycleError, NOTE_MAX, hasBlock, isAvailable, openIssues, validateCr
 import type { ProgramDay, Weekday } from '../src/engine'
 import {
   addTimeOff,
+  confirmProgramWithFacility,
   confirmWithFacility,
   getState,
   reschedule,
   resetDemo,
   saveCrew,
   setAvailability,
+  staffOpenSessions,
   submitIntake,
   updateCoach,
   updateIntake,
@@ -298,5 +300,55 @@ describe('reschedule', () => {
     const st = getState()
     const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
     expect(() => reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'x'.repeat(NOTE_MAX + 1))).toThrow(/under 300 characters/)
+  })
+})
+
+describe('bulk staffing a program', () => {
+  const tm = () => user('tm-lou')
+  const clover = () => getState().sessions.filter((s) => s.intakeId === 'i1').sort((a, b) => a.date.localeCompare(b.date))
+  const freeLead = (sessionId: string) => {
+    const w = worldOf(getState())
+    const s = getState().sessions.find((x) => x.id === sessionId)!
+    return getState().coaches.find((c) => c.territoryId === 'lou' && c.level === 'lead' && c.active && validateCrew(s, [c.id], w).length === 0)!
+  }
+
+  it('adds the saved coaches to every open session they can work, and leaves the rest open with a reason', () => {
+    const first = clover()[0]
+    const lead = freeLead(first.id)
+    expect(saveCrew(tm(), first.id, [lead.id], false)).toEqual({ ok: true })
+    const r = staffOpenSessions(tm(), first.id)
+    expect(r.filled.length + r.skipped.length).toBe(15)
+    expect(r.filled.length).toBeGreaterThan(0)
+    for (const id of r.filled) {
+      const s = getState().sessions.find((x) => x.id === id)!
+      expect(s.assignments.map((a) => a.coachId)).toEqual([lead.id])
+      expect(s.history.at(-1)?.text).toMatch(/added to the whole program/)
+    }
+    for (const { id, reason } of r.skipped) {
+      expect(getState().sessions.find((x) => x.id === id)!.assignments).toEqual([])
+      expect(reason.length).toBeGreaterThan(0)
+    }
+    // Nothing it filled breaks a rule.
+    const w = worldOf(getState())
+    for (const id of r.filled) expect(openIssues(getState().sessions.find((x) => x.id === id)!, w)).toEqual([])
+  })
+
+  it('can fill just one weekday (Clover Patch: Thursdays only)', () => {
+    const first = clover()[0] // a Thursday
+    saveCrew(tm(), first.id, [freeLead(first.id).id], false)
+    const r = staffOpenSessions(tm(), first.id, 4)
+    expect([...r.filled, ...r.skipped.map((x) => x.id)].every((id) => weekdayOf(getState().sessions.find((x) => x.id === id)!.date) === 4)).toBe(true)
+    expect(clover().filter((s) => weekdayOf(s.date) === 5).every((s) => s.assignments.length === 0)).toBe(true)
+  })
+
+  it('confirms every pending session of the program with the facility', () => {
+    const n = confirmProgramWithFacility(tm(), clover()[0].id)
+    expect(n).toBe(16)
+    expect(clover().every((s) => s.status === 'confirmed')).toBe(true)
+  })
+
+  it('only the territory’s managers can do it', () => {
+    expect(() => confirmProgramWithFacility(user('tm-knx'), clover()[0].id)).toThrow(LifecycleError)
+    expect(() => staffOpenSessions(tm(), clover()[0].id)).toThrow(/Save a coaching staff/)
   })
 })

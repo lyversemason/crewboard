@@ -87,3 +87,32 @@ export function standardizeAddress(street: string, territoryId: string, zip: str
   const { city, state } = CITY[territoryId]
   return `${s}, ${city}, ${state} ${zip}`
 }
+
+export interface HandAddress {
+  street: string
+  city: string
+  state: string
+  zip: string
+}
+
+export type HandResult = { address: string; lat: number; lng: number; approximate: boolean } | { problem: string }
+
+/**
+ * An address typed by hand (when the search can't find it). It's placed at the
+ * middle of its ZIP when the ZIP is one we know, otherwise at the middle of the
+ * territory, and the form says the drive times are approximate.
+ */
+export function handAddress(a: HandAddress, territoryId: string, territoryCenter: { lat: number; lng: number }): HandResult {
+  const street = standardizeStreet(a.street)
+  if (!/^\d+[A-Za-z]?\s+\S+/.test(street)) return { problem: 'Enter the street address with its house number, like 1234 Maple Ridge Dr.' }
+  const city = a.city.trim().replace(/\s+/g, ' ').replace(/\b([a-z])/g, (m) => m.toUpperCase())
+  if (!city) return { problem: 'Enter the city.' }
+  const state = a.state.trim().toUpperCase()
+  const expected = CITY[territoryId]?.state
+  if (state !== expected) return { problem: `Centers in this territory are in ${expected}.` }
+  if (!/^\d{5}$/.test(a.zip.trim())) return { problem: 'Enter the 5-digit ZIP code.' }
+  const zip = a.zip.trim()
+  const known = ZIPS[territoryId]?.find((z) => z.zip === zip)
+  const at = known ?? territoryCenter
+  return { address: `${street}, ${city}, ${state} ${zip}`, lat: at.lat, lng: at.lng, approximate: !known }
+}

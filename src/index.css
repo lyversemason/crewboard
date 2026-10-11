@@ -18,9 +18,9 @@
   --brand-ink: #f3f6f8;
   --brand-soft: #c8d6e2;
   --focus-soft: #d5e3ef;
-  --tan: #bba077;
-  --tan-soft: #e2d5bc;
-  --tan-2: #d8c7a6;
+  --tan: #c4ab8e;
+  --tan-soft: #e7dccd;
+  --tan-2: #e7dccd;
   --tan-ink: #574323;
   --pending: #685200;
   --pending-soft: #f0de8e;
@@ -427,7 +427,7 @@ details.history-box[open] summary { margin-bottom: 0.6em; }
 
 /* Day chips (pick weekdays) */
 .day-chips { display: inline-flex; gap: 0.3em; flex-wrap: wrap; }
-.day-chips button { font: inherit; font-size: 0.85rem; font-weight: 600; border: 1px solid #cdb994; background: var(--tan-soft); color: var(--tan-ink); border-radius: 8px; padding: 0.4em 0.7em; cursor: pointer; }
+.day-chips button { font: inherit; font-size: 0.85rem; font-weight: 600; border: 1px solid var(--line); background: var(--field); color: var(--muted); border-radius: 8px; padding: 0.4em 0.7em; cursor: pointer; }
 .day-chips button.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .sub-legend { font-size: 0.82rem; font-weight: 700; color: var(--muted); margin: 0.6em 0 0.2em; }
 .readout.big { font-size: 1.05rem; }
@@ -464,7 +464,7 @@ details.history-box[open] summary { margin-bottom: 0.6em; }
 .grid tr.row:hover td { background: var(--brand-soft); }
 .grid tr.needs-staff td:first-child { box-shadow: inset 4px 0 0 var(--bad); }
 .day-row td { background: var(--tan-soft); color: var(--tan-ink); border-left-color: var(--tan); }
-.day-row.day-2 td, .day-row.day-4 td, .day-row.day-6 td { background: var(--tan-2); }
+.day-row.day-2 td, .day-row.day-4 td, .day-row.day-6 td { background: var(--tan-2); border-left-color: var(--tan); }
 .day header { background: var(--tan-soft); margin: -0.5em -0.5em 0.6em; padding: 0.55em 0.7em; border-radius: var(--radius) var(--radius) 0 0; border-bottom-color: var(--line); }
 .day header strong { color: var(--tan-ink); }
 .day header span { color: var(--tan-ink); opacity: 0.85; }
@@ -494,7 +494,7 @@ table.mini th { background: var(--surface-2); }
 .bottom-nav a { color: var(--brand-strong); opacity: 0.75; }
 .bottom-nav a.active { opacity: 1; color: var(--brand-strong); box-shadow: inset 0 3px 0 var(--brand-strong); }
 .seg { background: var(--field); }
-.slot { background: var(--tan-soft); border-color: #cdb994; }
+.slot { background: var(--tan-soft); border-color: #cfbca4; }
 .slot.on { background: var(--brand); border-color: var(--brand); }
 .avail.mini i { background: var(--tan-2); }
 .avail.mini i.on { background: var(--brand); }
@@ -559,6 +559,27 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
 .phone-body h2 { color: var(--brand-strong); }
 .phone-body .seg button { padding: 0.45em 0.7em; }
 .timeoff-list li:nth-child(even) { background: var(--row-b); }
+
+/* ---- v2.2 ---- */
+/* Tan candidates for the section labels: one per section, the user picks one. */
+.intake-form .tan-a legend { background: #e7dccd; border-color: #c9b59b; color: #5a4632; } /* A: soft sand */
+.intake-form .tan-b legend { background: #e3d5c5; border-color: #c2a88e; color: #574230; } /* B: latte */
+.intake-form .tan-c legend { background: #ece4da; border-color: #d0c1ad; color: #5c4a37; } /* C: oat (lightest) */
+.intake-form .tan-d legend { background: #e0d1bf; border-color: #bda386; color: #54402c; } /* D: light camel */
+.intake-form .tan-e legend { background: #e9e1d6; border-color: #ccbdaa; color: #5a4a3a; } /* E: greige */
+.intake-form .tan-f legend { background: #e6d7c8; border-color: #c7ac94; color: #594333; } /* F: warm biscuit */
+
+/* Bulk staffing in the session panel */
+.bulk { margin-top: 0.9em; padding: 0.75em 0.9em; background: var(--brand-soft); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 8px; }
+.bulk p { margin: 0 0 0.4em; }
+.bulk .actions { margin-top: 0.3em; }
+.bulk-left { margin-top: 0.6em; }
+.bulk-left ul { list-style: none; padding: 0; margin: 0.3em 0 0; display: grid; gap: 0.25em; font-size: 0.88rem; }
+.pipeline-actions { margin: 0.4em 0; }
+
+/* Coach directory rows alternate like the Coaching Staff table */
+.directory li { padding-left: 0.5em; padding-right: 0.4em; border-bottom: 0; }
+.directory li:nth-child(odd) { background: var(--row-b); }
 
 @media (max-width: 1100px) {
   .calendar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
