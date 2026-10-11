@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { addDays, mondayOf, planningWeek, openIssues, prettyDate, prettyTime } from '../engine'
+import { addDays, cycleStatus, endingSoon, mediumDate, mondayOf, numDate, planningWeek, openIssues, prettyDate, prettyTime } from '../engine'
 import type { Settings, User } from '../engine'
 import { href } from '../router'
 import { updateSettings, useStore, worldOf } from '../store'
-import { shortWarning } from '../ui/format'
+import { Hint, Toast } from '../ui/bits'
+import { money, shortWarning } from '../ui/format'
 
 export function AdminDashboard({ user }: { user: User }) {
   const state = useStore()
@@ -33,14 +34,22 @@ export function AdminDashboard({ user }: { user: User }) {
     .filter((r) => r.issues.length)
     .sort((a, b) => (a.s.date + a.s.start).localeCompare(b.s.date + b.s.start))
 
+  // Programs whose last session is in the next two weeks: renewal conversations.
+  const renewals = state.centers
+    .filter((c) => c.terms)
+    .map((c) => ({ c, st: cycleStatus(c.terms!, state.sessions.filter((s) => s.centerId === c.id), state.today) }))
+    .filter(({ st }) => endingSoon(st, state.today))
+    .sort((a, b) => a.st.endsOn!.localeCompare(b.st.endsOn!))
+
   return (
     <div className="dash">
-      <p className="muted">
-        This week and next ({prettyDate(week)} – {prettyDate(horizon)}). Click a territory to act as its manager.
+      <p className="date-head">
+        {numDate(week)} – {numDate(horizon)}
       </p>
+      <Hint>The two weeks being planned, across all three territories. Hover a territory and click it to work as its territory manager.</Hint>
       <div className="kpi-grid">
         {rows.map((r) => (
-          <a key={r.t.id} className="kpi-card" href={href(user.id, 'calendar', { t: r.t.id })}>
+          <a key={r.t.id} className="kpi-card" href={href(user.id, 'calendar', { t: r.t.id })} data-tip="Click to act as territory manager">
             <h3>
               {r.t.name}, {r.t.state}
             </h3>
@@ -50,7 +59,7 @@ export function AdminDashboard({ user }: { user: User }) {
                 <dd>{r.total}</dd>
               </div>
               <div className={r.unassigned ? 'warn' : ''}>
-                <dt>Need a crew</dt>
+                <dt>Need coaching staff</dt>
                 <dd>{r.unassigned}</dd>
               </div>
               <div className={r.issues ? 'bad' : ''}>
@@ -70,7 +79,7 @@ export function AdminDashboard({ user }: { user: User }) {
                 <dd>{r.overrides}</dd>
               </div>
             </dl>
-            <span className="muted small">{r.coaches} active coaches · Open as manager →</span>
+            <span className="muted small">{r.coaches} active coaches</span>
           </a>
         ))}
       </div>
@@ -95,7 +104,26 @@ export function AdminDashboard({ user }: { user: User }) {
             ))}
           </ul>
         </section>
-        <SettingsCard user={user} settings={state.settings} />
+        <div className="cards">
+          <section className="card">
+            <h3>Cycles ending soon</h3>
+            <Hint>Programs whose last session is within two weeks, so sales can talk renewal. End dates include reschedules and make-up sessions.</Hint>
+            {renewals.length === 0 && <p className="muted small">None in the next two weeks.</p>}
+            <ul className="problem-list">
+              {renewals.map(({ c, st }) => (
+                <li key={c.id}>
+                  <a href={href(user.id, 'calendar', { t: c.territoryId, s: st.sessions.at(-1)!.id, w: mondayOf(st.endsOn!) })}>
+                    <strong>{c.name}</strong>
+                  </a>
+                  <small>
+                    {state.territories.find((t) => t.id === c.territoryId)?.name} · ends {mediumDate(st.endsOn!)} · {st.delivered} of {st.total} done · {money(c.terms!.cycleRate)} per cycle
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <SettingsCard user={user} settings={state.settings} />
+        </div>
       </div>
     </div>
   )
@@ -103,6 +131,7 @@ export function AdminDashboard({ user }: { user: User }) {
 
 function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
   const [draft, setDraft] = useState(settings)
+  const [toast, setToast] = useState('')
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
   const num = (k: keyof Settings, min: number, max: number) => (
     <input type="number" min={min} max={max} value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: Math.min(max, Math.max(min, Number(e.target.value) || min)) })} />
@@ -110,7 +139,7 @@ function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
   return (
     <section className="card">
       <h3>Global rule settings</h3>
-      <p className="small muted">Ops admins only. Changes re-check every session in every territory immediately.</p>
+      <Hint>Ops admins only. Changes re-check every session in every territory immediately.</Hint>
       <label className="field">
         Safety buffer between centers (minutes)
         {num('bufferMinutes', 0, 120)}
@@ -120,10 +149,17 @@ function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
         {num('avgSpeedMph', 5, 60)}
       </label>
       <p className="small muted">
-        Ratio: 1 coach per {settings.ratio} children; managers may override up to {settings.maxOverrideRatio}. Set by policy.
+        Ratio: 1 coach per {settings.ratio} children in a group; territory managers may override up to {settings.maxOverrideRatio}. Set by policy.
       </p>
       <div className="actions">
-        <button className="btn primary" disabled={!dirty} onClick={() => updateSettings(user, draft)}>
+        <button
+          className={`btn ${dirty ? 'save-ready' : 'save-idle'}`}
+          disabled={!dirty}
+          onClick={() => {
+            updateSettings(user, draft)
+            setToast('Settings saved. Every session was re-checked.')
+          }}
+        >
           Save settings
         </button>
         {dirty && (
@@ -132,6 +168,7 @@ function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
           </button>
         )}
       </div>
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
     </section>
   )
 }

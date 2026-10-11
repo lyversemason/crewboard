@@ -1,14 +1,31 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CANCEL_REASONS, LifecycleError, canAssign, canSeeMoney, isWorkday, largestGroup, prettyDate, prettyTime, validateCrew } from '../engine'
-import type { CancelReason, Session, User, Violation } from '../engine'
+import { useMemo, useState } from 'react'
+import {
+  CANCEL_REASONS,
+  LifecycleError,
+  canAssign,
+  canSeeMoney,
+  cycleStatus,
+  endingSoon,
+  isWorkday,
+  largestGroup,
+  longDate,
+  mediumDate,
+  prettyTime,
+  sessionNumber,
+  sessionsInCycle,
+  validateCrew,
+  WEEKDAY_LONG,
+} from '../engine'
+import type { CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
 import { cancel, confirmWithFacility, reschedule, saveCrew, useStore, worldOf } from '../store'
-import { IssueList, LevelTag, Modal, Phone, StatusPill } from '../ui/bits'
+import { Hint, IssueList, LevelTag, Modal, Phone, StatusPill, Toast, UnconfirmedAlert } from '../ui/bits'
 import { mapHref, money, movedTo } from '../ui/format'
 
 export function SessionPanel({ user, sessionId }: { user: User; sessionId: string }) {
   const state = useStore()
   const route = useRoute()
+  const [toast, setToast] = useState('')
   const session = state.sessions.find((s) => s.id === sessionId)
   const close = () => setParams(route, { s: undefined })
   if (!session || !(user.role === 'ops_admin' || user.territoryIds.includes(session.territoryId))) {
@@ -18,7 +35,12 @@ export function SessionPanel({ user, sessionId }: { user: User; sessionId: strin
       </Modal>
     )
   }
-  return <Panel key={session.id} user={user} session={session} close={close} />
+  return (
+    <>
+      <Panel key={session.id} user={user} session={session} close={close} toast={setToast} />
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
+    </>
+  )
 }
 
 const SPACE_LABEL: Record<string, string> = {
@@ -34,25 +56,19 @@ const SPACE_LABEL: Record<string, string> = {
   blacktop: 'Blacktop / concrete',
 }
 
-function Panel({ user, session: s, close }: { user: User; session: Session; close: () => void }) {
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+function Panel({ user, session: s, close, toast }: { user: User; session: Session; close: () => void; toast: (msg: string) => void }) {
   const state = useStore()
   const route = useRoute()
   const world = worldOf(state)
   const center = state.centers.find((c) => c.id === s.centerId)!
-  const territory = state.territories.find((t) => t.id === s.territoryId)!
   const editable = canAssign(user, s.territoryId) && (s.status === 'pending' || s.status === 'confirmed')
   const [draft, setDraft] = useState<string[]>(s.assignments.map((a) => a.coachId))
   const [confirming, setConfirming] = useState<Violation[] | null>(null)
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  useEffect(() => {
-    if (!notice) return
-    const t = setTimeout(() => setNotice(''), 5000)
-    return () => clearTimeout(t)
-  }, [notice])
-  // Any change to the crew makes an earlier "saved" message untrue.
+  // Any change to the coaching staff clears an old error.
   const edit = (next: string[]) => {
-    setNotice('')
     setError('')
     setDraft(next)
   }
@@ -60,6 +76,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
   const violations = useMemo(() => (draft.length ? validateCrew(s, draft, world) : []), [draft, s, world])
   const dirty = draft.join() !== s.assignments.map((a) => a.coachId).join()
   const blocked = violations.some((v) => v.severity === 'block')
+  const needsOverride = violations.some((v) => v.severity === 'override')
   const overriddenCodes = dirty ? [] : s.overrides.map((o) => o.code)
 
   const roster = state.coaches.filter((c) => c.territoryId === s.territoryId && c.active)
@@ -67,7 +84,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
     .filter((c) => !draft.includes(c.id))
     .map((c) => {
       const own = validateCrew(s, [c.id], world).filter((v) => v.coachId === c.id)
-      const label = own.some((v) => v.severity === 'block') ? '⛔ busy' : own.some((v) => v.code === 'travel') ? '⚠ travel' : own.length ? '⚠ not available' : '✓ free'
+      const label = own.some((v) => v.severity === 'block') ? '⛔ busy' : own.some((v) => v.code === 'travel') ? '⚠ drive time' : own.length ? '⚠ not available' : '✓ free'
       return { c, label, rank: own.some((v) => v.severity === 'block') ? 3 : own.length ? 2 : 1 }
     })
     .sort((a, b) => a.rank - b.rank || (a.c.level === b.c.level ? a.c.name.localeCompare(b.c.name) : a.c.level === 'lead' ? -1 : 1))
@@ -76,7 +93,7 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
     setError('')
     try {
       fn()
-      if (done) setNotice(done)
+      if (done) toast(done)
     } catch (e) {
       setError(e instanceof LifecycleError ? e.message : String(e))
     }
@@ -87,24 +104,22 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
       const r = saveCrew(user, s.id, draft, confirmed)
       if (r.ok) {
         setConfirming(null)
-        setNotice(confirmed ? 'Crew saved with override. The override is logged in the history.' : 'Crew saved.')
+        toast(confirmed ? 'Coaching staff saved with an override (logged in the history).' : 'Coaching staff saved.')
       } else if ('needsConfirm' in r) setConfirming(r.needsConfirm)
       else setError('Blocked: fix the red items first.')
     })
 
   const linked = (id?: string) => id && state.sessions.find((x) => x.id === id)
+  const coachOf = (id: string) => state.coaches.find((x) => x.id === id)!
+  const saveClass = !dirty ? 'save-idle' : blocked ? 'save-blocked' : needsOverride ? 'save-override' : 'save-ready'
+  const saveLabel = !dirty ? 'Saved' : blocked ? 'Can’t save yet' : needsOverride ? 'Save with override…' : 'Save coaching staff'
 
   return (
-    <Modal title={center.name} onClose={close} wide>
-      <div className="panel-head">
-        <div>
-          <p className="big-when">
-            {prettyDate(s.date)} · {prettyTime(s.start)}–{prettyTime(s.end)}
-          </p>
-          <p className="muted">
-            {territory.name}, {territory.state} · Session {s.id}
-          </p>
-        </div>
+    <Modal title={center.name} onClose={close} wide big>
+      <div className="sp-head">
+        <p className="sp-when">
+          {longDate(s.date)} · {prettyTime(s.start)}–{prettyTime(s.end)}
+        </p>
         <StatusPill status={s.status} />
       </div>
 
@@ -133,81 +148,90 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
         </div>
       )}
 
-      <div className="panel-grid">
-        <section>
-          <h3>Facility</h3>
-          <p>
-            <a href={mapHref(center.address)} target="_blank" rel="noreferrer">
-              {center.address}
-            </a>
-          </p>
-          <p>
-            Front desk <Phone phone={center.phone} />
-          </p>
-          <p>
-            {center.poc.name}, {center.poc.title}
-            <br />
-            <Phone phone={center.poc.phone} label={`${center.poc.phone}${center.poc.ext ? ` x${center.poc.ext}` : ''}`} /> ·{' '}
-            <a href={`mailto:${center.poc.email}`}>{center.poc.email}</a>
-          </p>
-          <p className="muted">
-            {center.space.category === 'indoor'
-              ? `Indoor · ${SPACE_LABEL[center.space.indoorSize ?? ''] ?? ''} · ${center.space.floor ?? ''}`
-              : `Outdoor · ${SPACE_LABEL[center.space.outdoorSurface ?? ''] ?? ''} · ${center.space.grade}`}
-            {center.space.obstacles.length > 0 && ` · Watch for: ${center.space.obstacles.join(', ')}`}
-            {center.space.category === 'outdoor' && ` · Weather backup room: ${center.space.backupIndoorSpace ? 'yes' : 'NO'}`}
-          </p>
-          {canSeeMoney(user) && center.terms && (
-            <p className="money">
-              Program terms: {center.terms.cycleWeeks}-week cycle · {center.terms.sessionsPerWeek}×/week · {money(center.terms.cycleRate)} per cycle
-            </p>
-          )}
-        </section>
+      {canSeeMoney(user) && <ProgramBox center={center} session={s} />}
 
-        <section>
-          <h3>Groups (largest: {largestGroup(s)})</h3>
-          <table className="mini">
-            <thead>
-              <tr>
-                <th>Kids</th>
-                <th>Ages</th>
-                <th>Minutes</th>
-                <th>Support notes</th>
+      <section className="sp-section">
+        <h3>Facility</h3>
+        <div className="two-col">
+          <dl className="facts">
+            <dt>Address</dt>
+            <dd>
+              <a href={mapHref(center.address)} target="_blank" rel="noreferrer">
+                {center.address}
+              </a>
+            </dd>
+            <dt>Front desk</dt>
+            <dd>
+              <Phone phone={center.phone} />
+            </dd>
+            <dt>Contact</dt>
+            <dd>
+              {center.poc.name}, {center.poc.title}
+              <br />
+              <Phone phone={center.poc.phone} label={`${center.poc.phone}${center.poc.ext ? ` x${center.poc.ext}` : ''}`} />
+              <br />
+              <a href={`mailto:${center.poc.email}`}>{center.poc.email}</a>
+            </dd>
+          </dl>
+          <SpaceFacts center={center} />
+        </div>
+      </section>
+
+      <section className="sp-section">
+        <h3>Groups ({s.groups.length})</h3>
+        <table className="mini">
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Kids</th>
+              <th>Ages</th>
+              <th>Minutes</th>
+              <th>Support notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.groups.map((g, i) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>{g.players}</td>
+                <td>{g.ageRange}</td>
+                <td>{g.minutes}</td>
+                <td>{g.supportNotes ?? '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {s.groups.map((g, i) => (
-                <tr key={i}>
-                  <td>{g.players}</td>
-                  <td>{g.ageRange}</td>
-                  <td>{g.minutes}</td>
-                  <td>{g.supportNotes ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {s.notes && <p className="note">{s.notes}</p>}
-        </section>
-      </div>
+            ))}
+          </tbody>
+        </table>
+        {s.notes && <p className="note">{s.notes}</p>}
+      </section>
 
-      <section className="crew">
-        <h3>Crew</h3>
+      <section className="sp-section">
+        <h3>Coaching staff</h3>
         {draft.length === 0 && <p className="muted">Nobody assigned yet.</p>}
-        <ul className="crew-list">
+        <ul className="staff-list">
           {draft.map((id) => {
-            const c = state.coaches.find((x) => x.id === id)!
+            const c = coachOf(id)
             const a = s.assignments.find((x) => x.coachId === id)
             return (
               <li key={id}>
                 <span>
                   <strong>{c.name}</strong> <LevelTag level={c.level} />
                 </span>
-                <span className="muted">{a ? (a.confirmedByCoach ? 'Coach confirmed ✓' : 'Waiting for coach') : 'New'}</span>
-                <Phone phone={c.phone} />
-                {editable && (
+                <span>
+                  {!a ? (
+                    <span className="confirm-new">Not saved yet</span>
+                  ) : a.confirmedByCoach ? (
+                    <span className="confirm-ok">✓ Coach confirmed</span>
+                  ) : (
+                    <UnconfirmedAlert name={c.name} phone={c.phone} />
+                  )}
+                </span>
+                <Phone phone={c.phone} hideNumber />
+                {editable ? (
                   <button className="icon-btn" onClick={() => edit(draft.filter((x) => x !== id))} aria-label={`Remove ${c.name}`}>
                     ×
                   </button>
+                ) : (
+                  <span />
                 )}
               </li>
             )
@@ -229,45 +253,45 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
                 </option>
               ))}
             </select>
-            <span className="muted small">Rules re-check on every change.</span>
           </div>
         )}
+        <Hint>The list only offers this territory’s coaches, labeled free, drive time, not available or busy. The checks below re-run on every change.</Hint>
 
-        <IssueList issues={violations} overridden={overriddenCodes} />
-        {draft.length > 0 && violations.length === 0 && <p className="ok-line">✓ This crew passes every rule.</p>}
+        <RuleChecks session={s} crew={draft.map(coachOf)} violations={violations} overridden={overriddenCodes} />
+        <IssueList issues={violations.filter((v) => !(v.severity === 'override' && overriddenCodes.includes(v.code)))} />
 
         {editable && (
           <div className="actions">
-            <button className="btn primary" disabled={!dirty || blocked} onClick={() => save(false)}>
-              Save crew
+            <button className={`btn ${saveClass}`} disabled={!dirty || blocked} onClick={() => save(false)}>
+              {saveLabel}
             </button>
             {dirty && (
               <button className="btn ghost" onClick={() => edit(s.assignments.map((a) => a.coachId))}>
                 Undo changes
               </button>
             )}
-            {blocked && <span className="bad small">Can’t save: red items can’t be overridden.</span>}
+            {blocked && <span className="bad small">Red items can’t be overridden.</span>}
           </div>
         )}
+        {error && <p className="error">{error}</p>}
       </section>
-
-      {error && <p className="error">{error}</p>}
-      {notice && <p className="notice">{notice}</p>}
 
       {editable && <Lifecycle user={user} s={s} run={run} />}
 
-      <section>
-        <h3>History</h3>
-        <ol className="history">
-          {[...s.history].reverse().map((h, i) => (
-            <li key={i}>
-              <span>{h.text}</span>
-              <small>
-                {h.by} · {new Date(h.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-              </small>
-            </li>
-          ))}
-        </ol>
+      <section className="sp-section">
+        <details className="history-box">
+          <summary>History ({s.history.length})</summary>
+          <ol className="history">
+            {[...s.history].reverse().map((h, i) => (
+              <li key={i}>
+                <span>{h.text}</span>
+                <small>
+                  {h.by} · {new Date(h.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </small>
+              </li>
+            ))}
+          </ol>
+        </details>
       </section>
 
       {confirming && (
@@ -295,6 +319,129 @@ function Panel({ user, session: s, close }: { user: User; session: Session; clos
   )
 }
 
+/** What the center bought and where this session falls in the cycle. */
+function ProgramBox({ center, session }: { center: Center; session: Session }) {
+  const state = useStore()
+  const terms = center.terms
+  if (!terms) return null
+  const status = cycleStatus(terms, state.sessions.filter((x) => x.centerId === center.id), state.today)
+  const n = sessionNumber(status, session.id)
+  const days = terms.weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')
+  const pushed = status.endsOn && status.plannedEnd && status.endsOn > status.plannedEnd
+  const perSession = terms.cycleRate / sessionsInCycle(terms)
+  return (
+    <div className="sp-terms">
+      <div className="row">
+        <span>
+          <span className="k">Program</span>
+          <span className="v">
+            {plural(terms.cycleWeeks, 'week')} · {days}
+          </span>
+        </span>
+        <span>
+          <span className="k">This session</span>
+          <span className="v">{n ? `${n} of ${status.total}` : 'Outside the current cycle'}</span>
+        </span>
+        <span>
+          <span className="k">Started</span>
+          <span className="v">{status.startedOn ? mediumDate(status.startedOn) : mediumDate(terms.startDate)}</span>
+        </span>
+        <span>
+          <span className="k">Ends</span>
+          <span className="v">{status.endsOn ? mediumDate(status.endsOn) : '—'}</span>
+        </span>
+        <span>
+          <span className="k">Price</span>
+          <span className="v">
+            {money(terms.cycleRate)} per cycle <small>({money(perSession)}/session)</small>
+          </span>
+        </span>
+      </div>
+      <div className="meter" aria-label={`${status.delivered} of ${status.total} sessions done`}>
+        <i style={{ width: `${(100 * status.delivered) / status.total}%` }} />
+      </div>
+      <p className="sub">
+        {status.delivered} of {status.total} sessions done
+        {pushed && ` · pushed back from ${mediumDate(status.plannedEnd!)} by changes`}
+        {status.needsMakeUp > 0 && ` · ${plural(status.needsMakeUp, 'cancelled session')} still need${status.needsMakeUp === 1 ? 's' : ''} a make-up date`}
+        {endingSoon(status, state.today) && ' · ending soon: time to talk renewal'}
+      </p>
+      <p className="sp-id">Session {session.id}</p>
+    </div>
+  )
+}
+
+function SpaceFacts({ center }: { center: Center }) {
+  const sp = center.space
+  return (
+    <dl className="facts">
+      <dt>Space</dt>
+      <dd>{sp.category === 'indoor' ? 'Indoor' : 'Outdoor'}</dd>
+      {sp.category === 'indoor' ? (
+        <>
+          <dt>Room size</dt>
+          <dd>{SPACE_LABEL[sp.indoorSize ?? ''] ?? '—'}</dd>
+          <dt>Floor</dt>
+          <dd>{sp.floor ?? '—'}</dd>
+        </>
+      ) : (
+        <>
+          <dt>Surface</dt>
+          <dd>{SPACE_LABEL[sp.outdoorSurface ?? ''] ?? '—'}</dd>
+          <dt>Grade</dt>
+          <dd>{sp.grade === 'flat' ? 'Flat' : 'Sloped'}</dd>
+        </>
+      )}
+      <dt>Obstacles</dt>
+      <dd>{sp.obstacles.length ? sp.obstacles.join(', ') : 'None'}</dd>
+      {sp.category === 'outdoor' && (
+        <>
+          <dt>Weather backup</dt>
+          <dd className={sp.backupIndoorSpace ? '' : 'bad'}>{sp.backupIndoorSpace ? 'Indoor room available' : 'None: cancel in bad weather'}</dd>
+        </>
+      )}
+    </dl>
+  )
+}
+
+const RULES: { key: string; label: string; codes: ViolationCode[] }[] = [
+  { key: 'lead', label: 'Lead coach', codes: ['no_lead'] },
+  { key: 'ratio', label: 'Ratio', codes: ['ratio', 'ratio_max'] },
+  { key: 'travel', label: 'Drive time', codes: ['travel'] },
+  { key: 'avail', label: 'Availability', codes: ['unavailable'] },
+  { key: 'time', label: 'No double-booking', codes: ['overlap', 'wrong_territory', 'inactive'] },
+]
+
+/** One chip per staffing rule: green when met, amber when it needs an override, red when blocked. */
+function RuleChecks({ session, crew, violations, overridden }: { session: Session; crew: Coach[]; violations: Violation[]; overridden: string[] }) {
+  if (!crew.length) {
+    return (
+      <div className="rule-checks">
+        <span className="rule idle">Not staffed yet</span>
+      </div>
+    )
+  }
+  const kids = largestGroup(session)
+  const counted = crew.filter((c) => c.level !== 'trainee').length
+  return (
+    <div className="rule-checks">
+      {RULES.map((r) => {
+        const hit = violations.filter((v) => r.codes.includes(v.code))
+        const state = hit.some((v) => v.severity === 'block') ? 'block' : hit.length ? (hit.every((v) => overridden.includes(v.code)) ? 'overridden' : 'override') : 'ok'
+        const mark = state === 'ok' ? '✓' : state === 'block' ? '✕' : state === 'overridden' ? '✓' : '!'
+        const extra = r.key === 'ratio' ? ` · ${kids} kids, ${counted} coach${counted === 1 ? '' : 'es'}` : ''
+        return (
+          <span key={r.key} className={`rule ${state}`} title={hit.map((v) => v.detail).join('\n') || 'Rule met'}>
+            {mark} {r.label}
+            {extra}
+            {state === 'overridden' && ' (overridden)'}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => void, done?: string) => void }) {
   const route = useRoute()
   const [mode, setMode] = useState<'' | 'reschedule' | 'cancel'>('')
@@ -305,7 +452,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
   const [note, setNote] = useState('')
 
   return (
-    <section className="lifecycle">
+    <section className="sp-section lifecycle">
       <h3>Status</h3>
       <div className="actions">
         {s.status === 'pending' && (
@@ -319,8 +466,8 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
         <button className={`btn ${mode === 'cancel' ? 'on' : ''}`} onClick={() => setMode(mode === 'cancel' ? '' : 'cancel')}>
           Cancel session…
         </button>
-        <span className="muted small">Sessions are never deleted.</span>
       </div>
+      <Hint>Sessions are never deleted: a reschedule keeps the original on file and links a new session; a cancellation needs a reason code.</Hint>
 
       {mode === 'reschedule' && (
         <form
@@ -331,7 +478,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
               if (date && !isWorkday(date)) throw new LifecycleError('Sessions run Monday to Saturday.')
               const newId = reschedule(user, s.id, date, start, end)
               setParams(route, { s: newId })
-            })
+            }, s.assignments.length ? 'Rescheduled. The coaching staff was texted to re-confirm.' : 'Rescheduled.')
           }}
         >
           <label className="field">
@@ -349,7 +496,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
           <button className="btn primary" disabled={!date}>
             Reschedule
           </button>
-          <p className="small muted full">The original stays on file as “Rescheduled”. A new linked session is created and coaches must re-confirm.</p>
+          <p className="small muted full">The original stays on file as “Rescheduled”. The coaching staff is notified and has to re-confirm the new time.</p>
         </form>
       )}
 

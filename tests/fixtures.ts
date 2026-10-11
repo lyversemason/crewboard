@@ -20,6 +20,9 @@ export function coach(id: string, level: Coach['level'], over: Partial<Coach> = 
     payRate: 20,
     active: true,
     availability: allDay(),
+    timeOff: [],
+    weekChanges: {},
+    history: [],
     ...over,
   }
 }

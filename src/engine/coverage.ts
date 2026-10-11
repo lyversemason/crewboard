@@ -85,34 +85,36 @@ export function weeklyDates(first: string, weeks: number): string[] {
 }
 
 export interface SlotSuggestion {
-  weekday: Weekday
+  weekdays: Weekday[]
   firstDate: string
   start: string
   end: string
+  dates: string[]
 }
 
 /**
- * Open slots the rep can offer instead: same length, same number of weeks,
- * nearest times first on the requested weekday, then other weekdays.
+ * Open slots the rep can offer instead: same length and same number of
+ * sessions. Nearest times on the requested days come first; a program that
+ * runs one day a week may also move to another weekday.
  */
 export function suggestSlots(req: CoverageRequest, world: World, limit = 5): SlotSuggestion[] {
   if (req.dates.length === 0) return []
   const length = toMinutes(req.end) - toMinutes(req.start)
   if (length <= 0) return []
-  const first = req.dates[0]
-  const weeks = req.dates.length
   const wanted = toMinutes(req.start)
-  const baseDay = weekdayOf(first)
+  const days = [...new Set(req.dates.map(weekdayOf))]
+  const single = days.length === 1
 
   const candidates: { s: SlotSuggestion; score: number }[] = []
-  for (let offset = 0; offset < 6; offset++) {
-    const day = (((baseDay - 1 + offset) % 6) + 1) as Weekday
-    const firstDate = addDays(first, (day - baseDay + 7) % 7)
+  for (let offset = 0; offset < (single ? 6 : 1); offset++) {
+    const day = (((days[0] - 1 + offset) % 6) + 1) as Weekday
+    const shift = (day - days[0] + 7) % 7
+    const dates = req.dates.map((d) => addDays(d, shift))
     for (let t = 9 * 60; t + length <= 18 * 60; t += 30) {
       const start = fromMinutes(t)
-      const end = fromMinutes(t + length)
       if (offset === 0 && start === req.start) continue
-      candidates.push({ s: { weekday: day, firstDate, start, end }, score: offset * 1000 + Math.abs(t - wanted) })
+      const s = { weekdays: single ? [day] : days, firstDate: dates[0], start, end: fromMinutes(t + length), dates }
+      candidates.push({ s, score: offset * 1000 + Math.abs(t - wanted) })
     }
   }
   candidates.sort((a, b) => a.score - b.score)
@@ -120,8 +122,7 @@ export function suggestSlots(req: CoverageRequest, world: World, limit = 5): Slo
   const out: SlotSuggestion[] = []
   for (const { s } of candidates) {
     if (out.length >= limit) break
-    const result = checkCoverage({ ...req, dates: weeklyDates(s.firstDate, weeks), start: s.start, end: s.end }, world)
-    if (result.ok) out.push(s)
+    if (checkCoverage({ ...req, dates: s.dates, start: s.start, end: s.end }, world).ok) out.push(s)
   }
   return out
 }

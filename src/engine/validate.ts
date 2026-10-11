@@ -2,8 +2,9 @@
 // returns every rule the crew breaks. Managers' assignment screen and the
 // sales intake coverage check both call this same code.
 
+import { isAvailable, timeOffOn } from './availability'
 import { transitMinutes } from './geo'
-import { overlaps, prettyTime, toMinutes, weekdayOf } from './time'
+import { overlaps, prettyTime, toMinutes } from './time'
 import type { Center, Coach, Session, Settings, Violation, World } from './types'
 
 export const OVERRIDE_PREFIX = 'Are you sure you want to override this constraint?'
@@ -33,14 +34,6 @@ export function coachesNeeded(players: number, perCoach: number): number {
   return Math.max(1, Math.ceil(players / perCoach))
 }
 
-/** True when the coach's weekly availability covers the whole block. */
-export function isAvailable(coach: Coach, date: string, start: string, end: string): boolean {
-  const hours = coach.availability[weekdayOf(date)] ?? []
-  const from = Math.floor(toMinutes(start) / 60)
-  const to = Math.ceil(toMinutes(end) / 60)
-  for (let h = from; h < to; h++) if (!hours.includes(h)) return false
-  return true
-}
 
 type Slot = Pick<Session, 'id' | 'territoryId' | 'date' | 'start' | 'end' | 'groups'> & {
   /** Where the slot happens. Sales intake has a location before a center record exists. */
@@ -65,7 +58,7 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
     out.push({
       code: 'wrong_territory',
       severity: 'block',
-      message: `${coach.name} is on a different territory's roster.`,
+      message: `${coach.name} is on another territory's coaching staff.`,
       detail: 'Coaches can only work sessions in their own territory.',
       coachId: coach.id,
     })
@@ -75,7 +68,7 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
       code: 'inactive',
       severity: 'block',
       message: `${coach.name} is not an active coach.`,
-      detail: 'Reactivate them on the roster first.',
+      detail: 'Reactivate them on the Coaching Staff page first.',
       coachId: coach.id,
     })
   }
@@ -129,7 +122,9 @@ export function checkCoachTime(coach: Coach, slot: Slot, world: World): Violatio
       code: 'unavailable',
       severity: 'override',
       message: WARNINGS.unavailable,
-      detail: `${coach.name} is not marked available ${prettyTime(slot.start)}-${prettyTime(slot.end)} on that weekday.`,
+      detail: timeOffOn(coach, slot.date)
+        ? `${coach.name} has that day off${timeOffOn(coach, slot.date)!.note ? ` (${timeOffOn(coach, slot.date)!.note})` : ''}.`
+        : `${coach.name} is not marked available ${prettyTime(slot.start)}-${prettyTime(slot.end)} that day.`,
       coachId: coach.id,
     })
   }

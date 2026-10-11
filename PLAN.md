@@ -1,6 +1,6 @@
-# Crewboard: plan and spec
+# SoccerSessions: plan and spec
 
-Crewboard is a scheduling and sales-intake system for **Bramblewood Youth Soccer**, a
+SoccerSessions (first released as "Crewboard") is a scheduling and sales-intake system for **Bramblewood Youth Soccer**, a
 *fictional* company that sends soccer coaches to daycares and schools in three markets:
 Louisville KY, Knoxville TN and Oakland CA. Every company, center, coach, phone number
 and dollar figure in this repo is made up.
@@ -25,13 +25,14 @@ several cities. Before this system existed, three things went wrong over and ove
 
 | Role | Sees | Can do |
 |---|---|---|
-| Operations admin | Every territory | Everything a manager can, plus global settings (travel buffer, drive speed) |
-| Territory manager | Only their territory | Calendar/table views, assign coaches, override warnings, lifecycle changes, roster, program terms |
-| Sales rep | Only the intake form and their own submissions | Submit a new center, which must pass the live coverage check |
-| Coach | Only their own shifts + their territory's coach directory | Confirm shifts (one or the whole week), tap-to-map, tap-to-call, edit weekly availability |
+| Operations admin | Every territory | Everything a territory manager can, plus global settings (travel buffer, drive speed) and correcting a program's price after signing |
+| Territory manager | Only their territory | Calendar/table views, assign the coaching staff, override warnings, lifecycle changes, edit coaches (level, pay rate, contact, active), read program terms |
+| Sales rep | The intake form and their own submissions | Submit a new center with its program terms (must pass the live coverage check); edit a submission until a territory manager confirms it |
+| Coach | Only their own shifts + their territory's coach directory | Confirm shifts (one or the whole week), tap-to-map, call/text buttons, own their availability: usual week, one-week changes, days off, weekly check-in |
 
-Pay rates and contract money (program terms) are management-only. They're removed
-from the data before it reaches a coach or sales screen, not just hidden.
+Coach pay rates and margins are management-only: removed from the data before it
+reaches a coach or sales screen, not just hidden. A sales rep sees the price of the
+centers they signed, because they entered it.
 
 ## The rules engine
 
@@ -64,8 +65,8 @@ session with who did it and when.
 ## Sales intake + live coverage check
 
 While the rep fills in the form, the app checks in the background whether the current
-roster can cover the requested weekday, time and group sizes **on every date** in the
-cadence. It uses the same rules with no overrides allowed. It looks for any qualified
+coaching staff can cover the requested days, time and group sizes **on every date** of
+the program. It uses the same rules with no overrides allowed. It looks for any qualified
 combination (a free lead plus enough counted coaches) and **never assigns anyone**. If
 any date fails, the Submit button is disabled and the app suggests open slots of the
 same length that do work, so the rep can negotiate on the call.
@@ -83,6 +84,38 @@ for the manager to staff.
 - **Cancelled** keeps the record with a required reason code (and a note for "Other").
 - Every change is logged in the session's history.
 
+## v2: changes from reviewing v1 (2026-10-10)
+
+The person who ran the original system clicked through v1 and recorded notes. v2 is
+the result:
+
+- **Program terms belong to sales.** The rep enters cycle length (1, 2, 4, 8, 12 or 20
+  weeks), which days of the week (1 to 3 days), the start date, start and end time, and
+  the **price for the whole cycle** (centers pay per cycle, not per week). The form shows
+  what that works out to per session. Territory managers see the terms; only an ops
+  admin can change the price afterwards, and the change is logged.
+- **Cycle tracking.** Every session shows "session 3 of 8", when the cycle started and
+  when it will *really* end. The end date is read from the sessions, so reschedules and
+  make-up sessions push it out ("pushed back from Nov 5"). Cancelled sessions with no
+  make-up are flagged. The ops admin dashboard lists cycles ending within two weeks for
+  renewal conversations.
+- **Sales can edit a submission** until a territory manager confirms it (and before it
+  starts), e.g. when the director calls back with a new time. Sessions change in
+  place, extra ones are cancelled with the reason "Program changed before it started",
+  never deleted, and every change is logged.
+- **Availability belongs to the coach.** Coaches set their usual week, make one-week
+  changes, and add days off (vacations, exams). They confirm their availability every
+  week ("Has your availability changed?" → "No, it's the same"). Managers see all of
+  it, including who hasn't confirmed this week, but can't change it. The rules engine
+  treats a day off like any other unavailability, with the reason in the warning.
+- **Reschedules notify the coaching staff** to re-confirm (logged in the history; the
+  coach's phone shows "Moved: confirm").
+- **Clearer screens:** a calm light palette, dates with the year, a session panel
+  grouped into labeled sections, "Coaching staff" (not "crew"), a red (i) for coaches who
+  haven't confirmed (click to call or text them), one chip per staffing rule instead of
+  "passes every rule", a Save button that shows whether it can save, call/text icon
+  buttons, and explanations moved into an optional **Demo guide**.
+
 ## Scope
 
 **v1 (this build):** roles + demo logins, rules engine with tests, manager calendar +
@@ -91,7 +124,9 @@ actions, roster, sales intake with live coverage check and slot suggestions, coa
 mobile view (shifts, shift package, tap-to-map, tap-to-call/text, confirm / confirm
 week, directory, weekly availability), ops admin dashboard + settings.
 
-**Later:** dated availability exceptions + weekly re-confirm reminders, hours × pay
+**v2:** everything in the section above.
+
+**Later:** real push/SMS reminders, hours × pay
 rate dashboard (week / month / 3-week pay cycle), calendar subscription (iCal feed),
 bulk copy of a cadence across N weeks, equipment bag inventory, address verification
 API, real authentication and a shared database.
@@ -99,7 +134,8 @@ API, real authentication and a shared database.
 ## Architecture
 
 - **`src/engine/`**: pure TypeScript, no UI. Types, time and distance helpers,
-  validation, coverage, lifecycle, access control. Fully unit-tested (`tests/`).
+  validation, coverage, lifecycle, access control, availability (usual week, one-week
+  changes, days off) and program cycles. Fully unit-tested (`tests/`).
 - **`src/data/seed.ts`**: generates a believable fake company each time the demo
   resets, dated relative to the current week so the demo never looks stale.
 - **`src/store.ts`**: holds the app state, saves it to the browser's localStorage, and

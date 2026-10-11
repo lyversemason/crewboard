@@ -66,6 +66,31 @@ export function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: num
   return aStart < bEnd && bStart < aEnd
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/** "Monday, October 12, 2026" */
+export function longDate(date: string): string {
+  const d = parse(date)
+  return `${WEEKDAY_LONG[d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
+}
+
+/** "Oct 12, 2026" */
+export function mediumDate(date: string): string {
+  const d = parse(date)
+  return `${MONTHS[d.getUTCMonth()].slice(0, 3)} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
+}
+
+/** "10-12-2026" */
+export function numDate(date: string): string {
+  const [y, m, d] = date.split('-')
+  return `${m}-${d}-${y}`
+}
+
+/** Monday to Saturday of a week: "10-12-2026 – 10-17-2026" */
+export function weekRange(monday: string): string {
+  return `${numDate(monday)} – ${numDate(addDays(monday, 5))}`
+}
+
 export const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 export const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 

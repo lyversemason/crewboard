@@ -1,11 +1,28 @@
 import { useMemo, useState } from 'react'
-import { addDays, canSeeTerritory, checkCoverage, dayOfWeek, fromMinutes, prettyDate, prettyTime, suggestSlots, toMinutes, weeklyDates, WEEKDAY_LONG } from '../engine'
-import type { CoverageRequest, Group, SpaceProfile, User } from '../engine'
+import {
+  CYCLE_WEEKS,
+  addDays,
+  canEditIntake,
+  canSeeTerritory,
+  checkCoverage,
+  dayOfWeek,
+  fromMinutes,
+  mediumDate,
+  prettyDate,
+  prettyTime,
+  programDates,
+  suggestSlots,
+  toMinutes,
+  WEEKDAY_LONG,
+} from '../engine'
+import type { CoverageRequest, CycleWeeks, Group, Intake, SpaceProfile, User, Weekday } from '../engine'
 import { CITY, ZIPS, standardizeAddress } from '../data/places'
-import { href } from '../router'
-import { submitIntake, useStore, worldOf } from '../store'
+import { href, useRoute } from '../router'
+import { getState, submitIntake, updateIntake, useStore, worldOf } from '../store'
+import { Hint } from '../ui/bits'
+import { money } from '../ui/format'
 
-const WEEKS = [1, 2, 4, 8, 12, 20]
+const DAY_SHORT = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const OBSTACLES = ['Playground structures', 'Swings', 'Seesaws', 'Park/picnic benches', 'Gazebos', 'Loose toy storage areas']
 const FLOORS = ['Carpet', 'Tile', 'Linoleum', 'Hardwood']
 
@@ -16,36 +33,67 @@ function nextMonday(today: string) {
   return addDays(today, d === 0 ? 1 : 8 - d)
 }
 
+/** The intake form. With ?edit=<intake id> it changes an existing submission instead. */
 export function SalesIntake({ user }: { user: User }) {
+  const route = useRoute()
+  const editId = route.params.get('edit')
+  const intake = editId ? getState().intakes.find((i) => i.id === editId) : undefined
+  if (editId && (!intake || !canEditIntake(user, intake, getState().sessions, getState().today))) {
+    return (
+      <div className="card success">
+        <h2>This submission can’t be changed</h2>
+        <p>A territory manager has confirmed it, or the program has already started. Call the territory manager to make changes.</p>
+        <a className="btn" href={href(user.id, 'submissions')}>
+          Back to my submissions
+        </a>
+      </div>
+    )
+  }
+  return <IntakeForm key={editId ?? 'new'} user={user} editing={intake} />
+}
+
+function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const state = useStore()
   const territories = state.territories.filter((t) => canSeeTerritory(user, t.id))
-  const [territoryId, setTerritoryId] = useState(territories[0]?.id ?? '')
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [street, setStreet] = useState('')
-  const [zip, setZip] = useState('')
-  const [poc, setPoc] = useState({ name: '', title: 'Center Director', email: '', phone: '', ext: '' })
-  const [firstDate, setFirstDate] = useState(addDays(nextMonday(state.today), 1))
-  const [weeks, setWeeks] = useState(8)
-  const [start, setStart] = useState('10:00')
-  const [groups, setGroups] = useState<Group[]>([{ players: 10, ageRange: '3-4', minutes: 30 }])
-  const [space, setSpace] = useState<Space>({ category: 'indoor', indoorSize: 'larger', floor: 'Carpet', grade: 'flat', obstacles: [], backupIndoorSpace: null })
-  const [notes, setNotes] = useState('')
+  const existing = editing ? state.centers.find((c) => c.id === editing.centerId) : undefined
+  const [territoryId, setTerritoryId] = useState(existing?.territoryId ?? territories[0]?.id ?? '')
+  const [name, setName] = useState(existing?.name ?? '')
+  const [phone, setPhone] = useState(existing?.phone ?? '')
+  const [street, setStreet] = useState(existing?.address.split(',')[0] ?? '')
+  const [zip, setZip] = useState(existing?.address.split(' ').at(-1) ?? '')
+  const [poc, setPoc] = useState({ name: '', title: 'Center Director', email: '', phone: '', ext: '', ...existing?.poc, ...(existing && { ext: existing.poc.ext ?? '' }) })
+  const [firstDate, setFirstDate] = useState(existing?.terms?.startDate ?? addDays(nextMonday(state.today), 1))
+  const [weeks, setWeeks] = useState<CycleWeeks>(existing?.terms?.cycleWeeks ?? 8)
+  const [weekdays, setWeekdays] = useState<Weekday[]>(existing?.terms?.weekdays ?? [2])
+  const [price, setPrice] = useState(existing?.terms?.cycleRate ?? 0)
+  const [start, setStart] = useState(editing?.schedule.start ?? '10:00')
+  const [groups, setGroups] = useState<Group[]>(editing?.schedule.groups ?? [{ players: 10, ageRange: '3-4', minutes: 30 }])
+  // The end time follows the groups until the rep sets it by hand.
+  const [endTyped, setEndTyped] = useState<string | null>(editing?.schedule.end ?? null)
+  const [space, setSpace] = useState<Space>(existing?.space ?? { category: 'indoor', indoorSize: 'larger', floor: 'Carpet', grade: 'flat', obstacles: [], backupIndoorSpace: null })
+  const [notes, setNotes] = useState(editing?.schedule.notes ?? '')
   const [done, setDone] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const place = ZIPS[territoryId]?.find((z) => z.zip === zip)
   const address = standardizeAddress(street, territoryId, zip)
   const minutes = groups.reduce((m, g) => m + (g.minutes || 0), 0)
-  const end = fromMinutes(toMinutes(start) + minutes)
-  const dates = useMemo(() => (firstDate ? weeklyDates(firstDate, weeks) : []), [firstDate, weeks])
-  const sunday = firstDate && dayOfWeek(firstDate) === 0
+  const end = endTyped ?? fromMinutes(toMinutes(start) + minutes)
+  const blockMinutes = toMinutes(end) - toMinutes(start)
+  const terms = { startDate: firstDate, cycleWeeks: weeks, weekdays, cycleRate: price }
+  const dates = useMemo(() => programDates({ startDate: firstDate, cycleWeeks: weeks, weekdays }), [firstDate, weeks, weekdays])
   const pastDate = firstDate && firstDate < state.today
   const lateEnd = toMinutes(end) > 18 * 60
   const earlyStart = toMinutes(start) < 9 * 60
+  const badEnd = blockMinutes <= 0
+  const groupsTooLong = !badEnd && minutes > blockMinutes
 
-  const world = useMemo(() => worldOf(state), [state])
-  const valid = !!place && !sunday && !pastDate && !lateEnd && !earlyStart && groups.every((g) => g.players > 0 && g.minutes > 0)
+  // When editing, the submission's own sessions mustn't count as conflicts.
+  const world = useMemo(() => {
+    const w = worldOf(state)
+    return editing ? { ...w, sessions: w.sessions.filter((s) => s.intakeId !== editing.id) } : w
+  }, [state, editing])
+  const valid = !!place && !!firstDate && dates.length > 0 && !pastDate && !lateEnd && !earlyStart && !badEnd && !groupsTooLong && weekdays.length > 0 && groups.every((g) => g.players > 0 && g.minutes > 0)
   // Memoized so the coverage check only re-runs when the request actually changes.
   const req = useMemo<CoverageRequest | null>(
     () => (valid && place ? { territoryId, location: place, dates, start, end, groups } : null),
@@ -60,6 +108,7 @@ export function SalesIntake({ user }: { user: User }) {
     !address && 'a valid street address + ZIP',
     !poc.name.trim() && 'contact name',
     !/^\S+@\S+\.\S+$/.test(poc.email) && 'contact email',
+    !(price > 0) && 'cycle price',
     space.backupIndoorSpace === null && 'weather backup answer',
   ].filter(Boolean) as string[]
 
@@ -69,7 +118,7 @@ export function SalesIntake({ user }: { user: User }) {
     setError('')
     try {
       const { backupIndoorSpace, ...rest } = space
-      const id = submitIntake(user, {
+      const input = {
         center: {
           territoryId,
           name: name.trim(),
@@ -80,13 +129,16 @@ export function SalesIntake({ user }: { user: User }) {
           poc: { ...poc, ext: poc.ext || undefined },
           space: { ...rest, backupIndoorSpace: !!backupIndoorSpace },
         },
-        dates,
+        terms,
         start,
         end,
         groups: groups.map((g) => ({ ...g, supportNotes: g.supportNotes?.trim() || undefined })),
         notes: notes.trim() || undefined,
-      })
-      setDone(id)
+      }
+      if (editing) {
+        updateIntake(user, editing.id, input)
+        setDone(editing.id)
+      } else setDone(submitIntake(user, input))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -95,17 +147,19 @@ export function SalesIntake({ user }: { user: User }) {
   if (done) {
     return (
       <div className="card success">
-        <h2>Submitted ✓</h2>
+        <h2>{editing ? 'Changes saved ✓' : 'Submitted ✓'}</h2>
         <p>
-          {name} is on the {state.territories.find((t) => t.id === territoryId)?.name} calendar as {dates.length} pending, unassigned session{dates.length > 1 ? 's' : ''}. The territory manager assigns coaches next.
+          {editing
+            ? `${name} now has ${dates.length} pending session${dates.length > 1 ? 's' : ''}. Every change is logged on the sessions for the territory manager.`
+            : `${name} is on the ${state.territories.find((t) => t.id === territoryId)?.name} calendar as ${dates.length} pending session${dates.length > 1 ? 's' : ''}. The territory manager assigns the coaching staff next.`}
         </p>
         <div className="actions">
           <a className="btn primary" href={href(user.id, 'submissions')}>
             See my submissions
           </a>
-          <button className="btn ghost" onClick={() => window.location.reload()}>
+          <a className="btn ghost" href={href(user.id, 'intake')} onClick={() => setTimeout(() => window.location.reload(), 0)}>
             Start another
-          </button>
+          </a>
         </div>
       </div>
     )
@@ -196,43 +250,82 @@ export function SalesIntake({ user }: { user: User }) {
           </div>
         </fieldset>
 
-        <fieldset className="locked">
-          <legend>Program terms</legend>
-          <p className="small muted">🔒 Cycle length, frequency and price are entered by management after submission. Sales doesn’t see contract money.</p>
-        </fieldset>
-
         <fieldset>
-          <legend>Proposed cadence and groups</legend>
+          <legend>Program terms</legend>
           <div className="row">
             <label className="field">
-              First session
-              <input type="date" value={firstDate} min={state.today} onChange={(e) => setFirstDate(e.target.value)} />
-            </label>
-            <label className="field">
-              Weeks
-              <select value={weeks} onChange={(e) => setWeeks(Number(e.target.value))}>
-                {WEEKS.map((w) => (
+              Cycle length
+              <select value={weeks} onChange={(e) => setWeeks(Number(e.target.value) as CycleWeeks)}>
+                {CYCLE_WEEKS.map((w) => (
                   <option key={w} value={w}>
-                    {w}
+                    {w} week{w > 1 ? 's' : ''}
                   </option>
                 ))}
               </select>
+            </label>
+            <div className="field">
+              Days per week (up to 3)
+              <div className="day-chips" role="group" aria-label="Days of the week">
+                {([1, 2, 3, 4, 5, 6] as Weekday[]).map((d) => {
+                  const on = weekdays.includes(d)
+                  return (
+                    <button
+                      type="button"
+                      key={d}
+                      className={on ? 'on' : ''}
+                      aria-pressed={on}
+                      disabled={!on && weekdays.length >= 3}
+                      onClick={() => setWeekdays(on ? weekdays.filter((x) => x !== d) : [...weekdays, d].sort((a, b) => a - b))}
+                    >
+                      {DAY_SHORT[d]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="row">
+            <label className="field">
+              Starting
+              <input type="date" value={firstDate} min={state.today} onChange={(e) => setFirstDate(e.target.value)} />
             </label>
             <label className="field">
               Start time
               <input type="time" step={900} value={start} onChange={(e) => setStart(e.target.value)} />
             </label>
-            <div className="field">
-              Block
-              <span className="readout">
-                {firstDate && !sunday ? `${WEEKDAY_LONG[dayOfWeek(firstDate)]}s` : '—'} {prettyTime(start)}–{prettyTime(end)}
-              </span>
-            </div>
+            <label className="field">
+              End time
+              <input type="time" step={900} value={end} onChange={(e) => setEndTyped(e.target.value)} />
+            </label>
+            <label className="field narrow">
+              Cycle price ($)
+              <input type="number" min={0} step={10} value={price || ''} placeholder="0" onChange={(e) => setPrice(Math.max(0, Number(e.target.value)))} />
+            </label>
           </div>
-          {sunday && <p className="bad small">Sessions run Monday to Saturday.</p>}
+          <p className="readout big">
+            {dates.length} session{dates.length === 1 ? '' : 's'}
+            {weekdays.length > 0 && ` · ${weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')} ${prettyTime(start)}–${prettyTime(end)}`}
+            {dates.length > 0 && ` · first session ${mediumDate(dates[0])}, last ${mediumDate(dates.at(-1)!)}`}
+          </p>
+          {price > 0 && dates.length > 0 && (
+            <p className="small">
+              {money(price)} for the cycle = <strong>{money(price / dates.length)} per session</strong> · {money(price / weeks)} per week
+            </p>
+          )}
+          <Hint>Centers pay for the whole cycle, not week to week. The territory manager confirms these terms; after that only an ops admin can change the price.</Hint>
+          {weekdays.length === 0 && <p className="bad small">Pick at least one day.</p>}
           {pastDate && <p className="bad small">The first session can’t be in the past.</p>}
           {(lateEnd || earlyStart) && <p className="bad small">Sessions must fit between 9am and 6pm.</p>}
+          {badEnd && <p className="bad small">The end time must be after the start time.</p>}
+          {groupsTooLong && (
+            <p className="bad small">
+              The groups add up to {minutes} minutes but the session is {blockMinutes}. Make the session longer or the groups shorter.
+            </p>
+          )}
+        </fieldset>
 
+        <fieldset>
+          <legend>Groups</legend>
           <table className="groups">
             <thead>
               <tr>
@@ -275,7 +368,7 @@ export function SalesIntake({ user }: { user: User }) {
               ))}
             </tbody>
           </table>
-          <button type="button" className="btn ghost" onClick={() => setGroups([...groups, { players: 10, ageRange: '4-5', minutes: 45 }])} disabled={groups.length >= 4}>
+          <button type="button" className="btn ghost" onClick={() => setGroups([...groups, { players: 10, ageRange: '4-5', minutes: 30 }])} disabled={groups.length >= 4}>
             + Add a group
           </button>
         </fieldset>
@@ -334,6 +427,7 @@ export function SalesIntake({ user }: { user: User }) {
               </label>
             </div>
           )}
+          <p className="sub-legend">Obstacles on site</p>
           <div className="checks">
             {OBSTACLES.map((o) => (
               <label key={o} className="check">
@@ -364,7 +458,7 @@ export function SalesIntake({ user }: { user: User }) {
       </form>
 
       <aside className="coverage" aria-live="polite">
-        <h3>Can our roster cover this?</h3>
+        <h3>Can our coaching staff cover this?</h3>
         {!place && <p className="muted">Pick the ZIP to start the live check.</p>}
         {place && !req && <p className="muted">Fix the date/time above to run the check.</p>}
         {coverage && (
@@ -380,24 +474,26 @@ export function SalesIntake({ user }: { user: User }) {
                 </li>
               ))}
             </ul>
-            <p className="small muted">
-              Uses the scheduling rules (availability, existing sessions, drive time + {state.settings.bufferMinutes} min buffer, lead coach, 1:{state.settings.ratio}) with no overrides. It only proves a crew exists; the manager assigns coaches.
-            </p>
+            <Hint>
+              Uses the scheduling rules (availability, days off, existing sessions, drive time + {state.settings.bufferMinutes} min buffer, lead coach, 1:{state.settings.ratio}) with no overrides. It only proves qualified coaches exist; the territory manager assigns them.
+            </Hint>
             {!coverage.ok && (
               <div className="suggest">
                 <h4>Open slots to offer instead</h4>
-                {suggestions.length === 0 && <p className="small muted">No open slot of this length in the next {weeks} weeks. Try fewer kids per group or a shorter block.</p>}
-                {suggestions.map((s) => (
+                {suggestions.length === 0 && <p className="small muted">No open slot of this length over these weeks. Try fewer kids per group or a shorter session.</p>}
+                {suggestions.map((sg) => (
                   <button
-                    key={`${s.firstDate}${s.start}`}
+                    key={`${sg.firstDate}${sg.start}`}
                     type="button"
                     className="btn ghost suggestion"
                     onClick={() => {
-                      setFirstDate(s.firstDate)
-                      setStart(s.start)
+                      setFirstDate(sg.firstDate)
+                      setWeekdays(sg.weekdays)
+                      setStart(sg.start)
+                      setEndTyped(sg.end)
                     }}
                   >
-                    {WEEKDAY_LONG[s.weekday]}s {prettyTime(s.start)}–{prettyTime(s.end)} <small>from {prettyDate(s.firstDate)}</small>
+                    {sg.weekdays.map((d) => `${WEEKDAY_LONG[d]}s`).join(' & ')} {prettyTime(sg.start)}–{prettyTime(sg.end)} <small>from {prettyDate(sg.firstDate)}</small>
                   </button>
                 ))}
               </div>
@@ -405,9 +501,9 @@ export function SalesIntake({ user }: { user: User }) {
           </>
         )}
         <button className="btn primary block" disabled={!canSubmit} onClick={submit}>
-          Submit center
+          {editing ? 'Save changes' : 'Submit center'}
         </button>
-        {!coverage?.ok && place && <p className="small bad">Submit stays locked until the roster can cover every date.</p>}
+        {!coverage?.ok && place && <p className="small bad">Submit stays locked until the coaching staff can cover every date.</p>}
         {coverage?.ok && missing.length > 0 && <p className="small muted">Still needed: {missing.join(', ')}.</p>}
         {error && <p className="error">{error}</p>}
       </aside>

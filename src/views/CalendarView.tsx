@@ -1,4 +1,4 @@
-import { addDays, planningWeek, openIssues, prettyTime, WEEKDAY_LONG } from '../engine'
+import { addDays, planningWeek, openIssues, prettyTime, weekRange, WEEKDAY_LONG } from '../engine'
 import type { User } from '../engine'
 import { setParams } from '../router'
 import { worldOf } from '../store'
@@ -25,7 +25,7 @@ export function CalendarView({ user }: { user: User }) {
           <button className="btn" onClick={() => setParams(route, { w: addDays(week, -7) })} aria-label="Previous week">
             ←
           </button>
-          <span className="week-label">Week of {new Date(`${week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })}</span>
+          <span className="week-label">{weekRange(week)}</span>
           <button className="btn" onClick={() => setParams(route, { w: addDays(week, 7) })} aria-label="Next week">
             →
           </button>
@@ -37,7 +37,7 @@ export function CalendarView({ user }: { user: User }) {
         </div>
         <div className="summary">
           <span>{inWeek.filter((s) => s.status !== 'cancelled' && s.status !== 'rescheduled').length} sessions</span>
-          <span className={unassigned ? 'warn' : ''}>{unassigned} need{unassigned === 1 ? 's' : ''} a crew</span>
+          <span className={unassigned ? 'warn' : ''}>{unassigned} need{unassigned === 1 ? 's' : ''} coaching staff</span>
           <span className={issues ? 'bad' : ''}>{issues} rule issue{issues === 1 ? '' : 's'}</span>
         </div>
       </div>
@@ -74,7 +74,12 @@ export function CalendarView({ user }: { user: User }) {
                       {s.status === 'cancelled' && <span className="flag muted">Cancelled</span>}
                       {open.length > 0 && <span className="flag bad">⚠ {open.length}</span>}
                       {s.overrides.length > 0 && !closed && <span className="flag override">Override</span>}
-                      {!closed && s.assignments.length > 0 && unconfirmed > 0 && <span className="flag soft">{unconfirmed} unconfirmed</span>}
+                      {!closed && s.assignments.length > 0 && unconfirmed > 0 && (
+                        <span className="flag alert" title="Open the session to call or text them">
+                          <b>i</b>
+                          {unconfirmed === 1 ? 'Coach hasn’t confirmed' : `${unconfirmed} coaches haven’t confirmed`}
+                        </span>
+                      )}
                     </span>
                   </button>
                 )

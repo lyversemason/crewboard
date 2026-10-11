@@ -1,4 +1,4 @@
-// Generates the fictional Bramblewood Youth Soccer company. The output is the
+// Generates the fictional Bramblewood Youth Soccer company for SoccerSessions. The output is the
 // same every time for a given week (seeded random numbers), and dates are
 // relative to the current week so the demo always looks current.
 //
@@ -13,7 +13,9 @@ import {
   fromMinutes,
   mondayOf,
   pickCrew,
+  cycleStatus,
   planningWeek,
+  programDates,
   slotLabel,
   toMinutes,
   transitMinutes,
@@ -189,11 +191,7 @@ export function buildDemo(today: string): DemoData {
           ext: r() < 0.4 ? String(100 + Math.floor(r() * 50)) : undefined,
         },
         space: spaceFor(r),
-        terms: {
-          cycleWeeks: pick([4, 8, 8, 12, 20] as const),
-          sessionsPerWeek: pick([1, 1, 2] as const),
-          cycleRate: 0,
-        },
+        terms: { startDate: '', cycleWeeks: pick([4, 8, 8, 12] as const), weekdays: [], cycleRate: 0 },
       })
     })
     LEVELS.forEach((level, i) => {
@@ -211,6 +209,11 @@ export function buildDemo(today: string): DemoData {
         payRate: level === 'lead' ? 24 + Math.floor(r() * 5) : level === 'assistant' ? 19 + Math.floor(r() * 4) : 16 + Math.floor(r() * 2),
         active: true,
         availability: availabilityFor(r, level),
+        timeOff: [],
+        weekChanges: {},
+        // Most coaches have already confirmed this week's availability; a few haven't.
+        availabilityConfirmedWeek: r() < 0.7 ? planningWeek(today) : undefined,
+        history: [],
       })
       users.push({ id: `u-${id}`, name: `${first} ${last}`, role: 'coach', territoryIds: [t.id], coachId: id })
     })
@@ -220,7 +223,7 @@ export function buildDemo(today: string): DemoData {
   interface Cadence { centerId: string; territoryId: string; weekday: Weekday; start: string; groups: Group[] }
   const cadences: Cadence[] = []
   for (const c of centers) {
-    const slots = c.terms!.sessionsPerWeek
+    const slots = pick([1, 1, 2])
     const used = new Set<number>()
     for (let k = 0; k < slots; k++) {
       // Try a few random times; keep the first one the roster could staff.
@@ -238,8 +241,17 @@ export function buildDemo(today: string): DemoData {
       used.add(chosen.weekday)
       cadences.push(chosen)
     }
+    const terms = c.terms!
+    terms.weekdays = ([...used] as Weekday[]).sort((a, b) => a - b)
+    if (!terms.weekdays.length) {
+      delete c.terms
+      continue
+    }
+    // Cycles started anywhere from this week to six weeks ago.
+    const weeksAgo = Math.floor(r() * Math.min(terms.cycleWeeks, 7))
+    terms.startDate = addDays(thisMonday, -7 * weeksAgo + terms.weekdays[0] - 1)
     const perSession = 140 + Math.floor(r() * 9) * 10
-    c.terms!.cycleRate = perSession * c.terms!.cycleWeeks * c.terms!.sessionsPerWeek
+    terms.cycleRate = perSession * terms.cycleWeeks * terms.weekdays.length
   }
 
   const settings: Settings = { ...DEFAULT_SETTINGS }
@@ -247,13 +259,12 @@ export function buildDemo(today: string): DemoData {
   let seq = 0
   const newId = () => `s${++seq}`
 
-  // Last week through three weeks out.
-  for (let w = -1; w <= 3; w++) {
-    const monday = addDays(thisMonday, w * 7)
-    for (const cad of cadences) {
-      const date = addDays(monday, cad.weekday - 1)
-      const past = date < today
-      const status = past || w <= 1 || r() < 0.7 ? 'confirmed' : 'pending'
+  // Every session of every center's current cycle.
+  for (const c of centers) {
+    if (!c.terms) continue
+    for (const date of programDates(c.terms)) {
+      const cad = cadences.find((k) => k.centerId === c.id && k.weekday === new Date(`${date}T00:00:00Z`).getUTCDay())!
+      const status = date < addDays(thisMonday, 14) || r() < 0.7 ? 'confirmed' : 'pending'
       world.sessions.push({
         id: newId(),
         territoryId: cad.territoryId,
@@ -265,7 +276,7 @@ export function buildDemo(today: string): DemoData {
         status,
         assignments: [],
         overrides: [],
-        history: [{ at: nowIso, by: 'Demo setup', text: 'Created from the center cadence' }],
+        history: [{ at: nowIso, by: 'Demo setup', text: 'Created from the program schedule' }],
       })
     }
   }
@@ -303,6 +314,8 @@ export function buildDemo(today: string): DemoData {
   }
 
   plantDemoCases(world, today, thisMonday, nowIso, newId)
+  plantMakeUp(world, today, nowIso, newId)
+  plantTimeOff(world, today)
 
   const intakes: Intake[] = []
   plantIntake(world, intakes, thisMonday, nowIso, newId)
@@ -364,11 +377,19 @@ function plantDemoCases(world: World, today: string, monday: string, at: string,
   }
 
   // 2. Ratio override: a group of 14 with one lead.
-  const big = louFuture.find((s) => s.assignments.length === 1 && s.groups.length === 1)
-  if (big) {
-    big.groups = [{ ...big.groups[0], players: 14 }]
-    big.overrides = [{ code: 'ratio', message: WARNINGS.ratio, by: 'Priya Raman', at }]
-    big.history.push({ at, by: 'Priya Raman', text: 'Overrode: 1:12 ratio (two teachers from the center will assist)' })
+  //    Keep just the session's lead so exactly the ratio rule is broken.
+  const candidates = louFuture.filter((s) => !s.overrides.length).sort((a, b) => a.groups.length - b.groups.length)
+  for (const big of candidates) {
+    const lead = big.assignments.find((a) => world.coaches.find((c) => c.id === a.coachId)?.level === 'lead')
+    if (!lead) continue
+    const trial = { ...big, groups: big.groups.map((g, i) => (i === 0 ? { ...g, players: 14 } : g)), assignments: [lead] }
+    const codes = validateCrew(trial, [lead.coachId], world).map((v) => v.code)
+    if (codes.length !== 1 || codes[0] !== 'ratio') continue
+    Object.assign(big, trial, {
+      overrides: [{ code: 'ratio', message: WARNINGS.ratio, by: 'Priya Raman', at }],
+      history: [...big.history, { at, by: 'Priya Raman', text: 'Overrode: 1:12 ratio (two teachers from the center will assist)' }],
+    })
+    break
   }
 
   // 3. A live problem nobody has fixed yet: a coach changed their availability.
@@ -437,22 +458,31 @@ function plantIntake(world: World, intakes: Intake[], monday: string, at: string
     lng: z.lng - 0.003,
     poc: { name: 'Robin Sutter', title: 'Center Director', email: 'robin@cloverpatch.example.com', phone: '502-555-0148', ext: '12' },
     space: { category: 'outdoor', outdoorSurface: 'short_grass', grade: 'flat', obstacles: ['Playground structures'], backupIndoorSpace: true },
-    terms: { cycleWeeks: 8, sessionsPerWeek: 1, cycleRate: 1360 },
+    terms: { startDate: addDays(monday, 7 + 3), cycleWeeks: 8, weekdays: [4], cycleRate: 1360 }, // Thursdays
   }
   world.centers.push(center)
-  const intake: Intake = { id: 'i1', salesRepId: 'rep-east', territoryId: 'lou', centerId: center.id, submittedAt: at, sessionIds: [] }
   const groups: Group[] = [
     { players: 10, ageRange: '3-4', minutes: 30 },
     { players: 12, ageRange: '4-5', minutes: 45 },
   ]
-  for (let w = 1; w <= 3; w++) {
+  const intake: Intake = {
+    id: 'i1',
+    salesRepId: 'rep-east',
+    territoryId: 'lou',
+    centerId: center.id,
+    submittedAt: at,
+    sessionIds: [],
+    schedule: { start: '10:30', end: blockEnd('10:30', groups), groups },
+    history: [{ at, by: 'Jamie Ellison', text: 'Submitted' }],
+  }
+  for (const date of programDates(center.terms!)) {
     const id = newId()
     intake.sessionIds.push(id)
     world.sessions.push({
       id,
       territoryId: 'lou',
       centerId: center.id,
-      date: addDays(monday, w * 7 + 3), // Thursdays
+      date,
       start: '10:30',
       end: blockEnd('10:30', groups),
       groups,
@@ -464,4 +494,52 @@ function plantIntake(world: World, intakes: Intake[], monday: string, at: string
     })
   }
   intakes.push(intake)
+}
+
+/**
+ * A weather cancellation earlier in a Louisville cycle with a make-up session
+ * added after the planned end, so that cycle visibly ends a week late.
+ */
+function plantMakeUp(world: World, today: string, at: string, newId: () => string) {
+  for (const center of world.centers.filter((c) => c.territoryId === 'lou' && c.terms)) {
+    const mine = world.sessions.filter((s) => s.centerId === center.id)
+    const status = cycleStatus(center.terms!, mine, today)
+    if (!status.endsOn || status.endsOn < today || status.needsMakeUp) continue
+    const lost = status.sessions.find((s) => s.date < today && s.assignments.length)
+    if (!lost) continue
+    const last = status.sessions.at(-1)!
+    const makeUp: Session = {
+      ...last,
+      id: '',
+      date: addDays(status.plannedEnd!, 7),
+      status: 'confirmed',
+      assignments: last.assignments.map((a) => ({ coachId: a.coachId, confirmedByCoach: false })),
+      overrides: [],
+      history: [{ at, by: 'Priya Raman', text: `Make-up for the weather cancellation on ${slotLabel(lost.date, lost.start, lost.end)}` }],
+    }
+    if (validateCrew(makeUp, makeUp.assignments.map((a) => a.coachId), world).length) {
+      // The usual coaches can't do that date: staff the make-up like any other session.
+      const crew = pickCrew(eligibleCoaches({ ...makeUp, location: center }, world), makeUp.groups, world)
+      if (!crew) continue
+      makeUp.assignments = crew.map((c) => ({ coachId: c.id, confirmedByCoach: false }))
+    }
+    Object.assign(lost, {
+      status: 'cancelled',
+      cancelReason: 'weather',
+      cancelNote: 'Storms, and no indoor backup that day',
+      history: [...lost.history, { at, by: 'Priya Raman', text: 'Cancelled: Weather (no backup space). Make-up added at the end of the cycle.' }],
+    })
+    world.sessions.push({ ...makeUp, id: newId() })
+    return
+  }
+}
+
+/** A coach with a vacation coming up (on days they aren't already booked). */
+function plantTimeOff(world: World, today: string) {
+  const from = addDays(planningWeek(today), 14)
+  const to = addDays(from, 5)
+  const free = world.coaches.find(
+    (c) => c.territoryId === 'lou' && !world.sessions.some((s) => s.date >= from && s.date <= to && s.assignments.some((a) => a.coachId === c.id)),
+  )
+  if (free) free.timeOff.push({ id: 't1', from, to, note: 'Family vacation' })
 }

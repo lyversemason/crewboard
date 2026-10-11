@@ -1,11 +1,11 @@
 // The coach's phone view: only their own shifts, plus a territory directory.
 
 import { useState } from 'react'
-import { addDays, planningWeek, prettyDate, prettyTime, visibleRoster, visibleSessions, WEEKDAY_LONG, dayOfWeek } from '../engine'
-import type { Session, User, Weekday } from '../engine'
+import { addDays, hasConfirmedWeek, longDate, mediumDate, numDate, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, WEEKDAY_LONG, dayOfWeek } from '../engine'
+import type { Coach, Session, User, Weekday } from '../engine'
 import { href, setParams, useRoute } from '../router'
-import { coachConfirmMany, setAvailability, useStore } from '../store'
-import { Empty, LevelTag, Phone } from '../ui/bits'
+import { addTimeOff, coachConfirmMany, confirmAvailability, removeTimeOff, setAvailability, setWeekChange, useStore } from '../store'
+import { Empty, Hint, LevelTag, Phone, Toast } from '../ui/bits'
 import { mapHref, movedTo } from '../ui/format'
 import { AvailabilityGrid } from './AvailabilityGrid'
 
@@ -32,6 +32,26 @@ export function CoachApp({ user, view, nav }: { user: User; view: string; nav: {
 
 const live = (s: Session) => s.status === 'pending' || s.status === 'confirmed'
 
+/** The weekly check-in: "Has your availability changed?" for the week being planned. */
+function AvailabilityPrompt({ user, coach }: { user: User; coach: Coach }) {
+  const state = useStore()
+  const week = planningWeek(state.today)
+  if (hasConfirmedWeek(coach, week)) return null
+  return (
+    <div className="prompt" role="region" aria-label="Weekly availability check">
+      <p>Has your availability changed for {weekRange(week)}?</p>
+      <div className="actions">
+        <button className="btn primary" onClick={() => confirmAvailability(user, coach.id, week)}>
+          No, it’s the same
+        </button>
+        <a className="btn" href={href(user.id, 'availability')}>
+          Yes, update it
+        </a>
+      </div>
+    </div>
+  )
+}
+
 function Shifts({ user }: { user: User }) {
   const state = useStore()
   const route = useRoute()
@@ -51,11 +71,12 @@ function Shifts({ user }: { user: User }) {
         <h2>Hi {coach.name.split(' ')[0]}</h2>
         <LevelTag level={coach.level} />
       </header>
+      <AvailabilityPrompt user={user} coach={coach} />
       <div className="week-nav compact">
         <button className="btn" onClick={() => setParams(route, { w: addDays(week, -7) })} aria-label="Previous week">
           ←
         </button>
-        <span>Week of {prettyDate(week).slice(4)}</span>
+        <span className="week-label">{weekRange(week)}</span>
         <button className="btn" onClick={() => setParams(route, { w: addDays(week, 7) })} aria-label="Next week">
           →
         </button>
@@ -69,7 +90,7 @@ function Shifts({ user }: { user: User }) {
             setFlash(`Confirmed ${toConfirm.length} shift${toConfirm.length > 1 ? 's' : ''}.`)
           }}
         >
-          Confirm all {toConfirm.length} shift{toConfirm.length > 1 ? 's' : ''} this week
+          {toConfirm.length === 1 ? 'Confirm my 1 shift this week' : `Confirm all ${toConfirm.length} shifts this week`}
         </button>
       )}
       {flash && <p className="notice">{flash}</p>}
@@ -78,7 +99,7 @@ function Shifts({ user }: { user: User }) {
       {[...byDay.entries()].map(([date, sessions]) => (
         <section key={date} className={`phone-day day-${dayOfWeek(date)}`}>
           <h3>
-            {WEEKDAY_LONG[dayOfWeek(date)]} <span className="muted">{prettyDate(date).slice(4)}</span>
+            {WEEKDAY_LONG[dayOfWeek(date)]} <span className="muted">{numDate(date)}</span>
           </h3>
           {sessions.map((s) => {
             const center = state.centers.find((c) => c.id === s.centerId)!
@@ -98,6 +119,10 @@ function Shifts({ user }: { user: User }) {
                   <span className="flag muted">{s.status === 'cancelled' ? 'Cancelled' : 'Moved'}</span>
                 ) : me.confirmedByCoach ? (
                   <span className="flag ok">Confirmed ✓</span>
+                ) : s.rescheduledFromId && s.date >= state.today ? (
+                  <button className="btn small save-override" onClick={() => coachConfirmMany(user, [s.id])} title="This session moved. Confirm the new time.">
+                    Moved: confirm
+                  </button>
                 ) : s.date < state.today ? (
                   <span className="flag muted">Past</span>
                 ) : (
@@ -137,8 +162,9 @@ function ShiftPackage({ user, id }: { user: User; id: string }) {
       </a>
       <h2>{center.name}</h2>
       <p className="big-when">
-        {prettyDate(s.date)} · {prettyTime(s.start)}–{prettyTime(s.end)}
+        {longDate(s.date)} · {prettyTime(s.start)}–{prettyTime(s.end)}
       </p>
+      {live(s) && s.rescheduledFromId && !me.confirmedByCoach && <p className="callout">This session was rescheduled. Please confirm the new time.</p>}
       {!live(s) && <p className="callout">{s.status === 'cancelled' ? 'This session was cancelled.' : `This session moved to ${movedTo(s, state.sessions, true)}.`}</p>}
 
       <a className="tap-row" href={mapHref(center.address)} target="_blank" rel="noreferrer">
@@ -153,7 +179,7 @@ function ShiftPackage({ user, id }: { user: User; id: string }) {
         <span>
           {center.poc.name}, {center.poc.title}
           <small>
-            <Phone phone={center.poc.phone} label={`Call ${center.poc.phone}${center.poc.ext ? ` x${center.poc.ext}` : ''}`} />
+            <Phone phone={center.poc.phone} label={`${center.poc.phone}${center.poc.ext ? ` x${center.poc.ext}` : ''}`} />
           </small>
         </span>
       </div>
@@ -219,7 +245,7 @@ function Directory({ user }: { user: User }) {
       <header className="phone-head">
         <h2>{territory?.name} coaches</h2>
       </header>
-      <p className="muted small">For trading or covering shifts. Tap a number to call or text.</p>
+      <Hint>Only coaches in your territory, for trading or covering shifts. The buttons call or text from your phone.</Hint>
       <ul className="directory">
         {peers.map((c) => (
           <li key={c.id}>
@@ -237,34 +263,185 @@ function Directory({ user }: { user: User }) {
 function Availability({ user }: { user: User }) {
   const state = useStore()
   const coach = state.coaches.find((c) => c.id === user.coachId)!
-  const [draft, setDraft] = useState<Record<Weekday, number[]>>(coach.availability)
-  const [saved, setSaved] = useState(false)
-  const dirty = JSON.stringify(draft) !== JSON.stringify(coach.availability)
+  const [tab, setTab] = useState<'usual' | 'week' | 'off'>('usual')
+  const [toast, setToast] = useState('')
+  const week = planningWeek(state.today)
+  const done = (msg: string) => {
+    // Reviewing and saving counts as this week's check-in.
+    confirmAvailability(user, coach.id, week)
+    setToast(msg)
+  }
   return (
     <>
       <header className="phone-head">
-        <h2>My weekly availability</h2>
+        <h2>My availability</h2>
       </header>
-      <p className="muted small">Tap the hours you can usually work, Monday to Saturday, 9am to 6pm. Tap a day name to toggle the whole day.</p>
-      <AvailabilityGrid
-        value={draft}
-        onChange={(v) => {
-          setDraft(v)
-          setSaved(false)
-        }}
-      />
+      <AvailabilityPrompt user={user} coach={coach} />
+      <div className="seg" role="tablist" aria-label="Availability">
+        {(
+          [
+            ['usual', 'Usual week'],
+            ['week', 'One week only'],
+            ['off', 'Days off'],
+          ] as const
+        ).map(([k, label]) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'usual' && <UsualWeek user={user} coach={coach} onSaved={() => done('Saved: this is your usual week from now on.')} />}
+      {tab === 'week' && <OneWeek user={user} coach={coach} onSaved={done} />}
+      {tab === 'off' && <DaysOff user={user} coach={coach} today={state.today} onSaved={setToast} />}
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
+    </>
+  )
+}
+
+/** A long-term change, e.g. a new semester schedule. */
+function UsualWeek({ user, coach, onSaved }: { user: User; coach: Coach; onSaved: () => void }) {
+  const [draft, setDraft] = useState<Record<Weekday, number[]>>(coach.availability)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(coach.availability)
+  return (
+    <>
+      <p className="muted small">The hours you can usually work, Monday to Saturday, 9am to 6pm. Tap a day name to toggle the whole day.</p>
+      <AvailabilityGrid value={draft} onChange={setDraft} />
       <button
         className="btn primary block"
         disabled={!dirty}
         onClick={() => {
           setAvailability(user, coach.id, draft)
-          setSaved(true)
+          onSaved()
         }}
       >
-        Save availability
+        Save as my usual week
       </button>
-      {saved && <p className="notice">Saved. Your manager will see any shifts that no longer fit.</p>}
-      <p className="small muted">Coming later: date-specific exceptions (vacations, exams) and a weekly reminder to re-confirm.</p>
+    </>
+  )
+}
+
+/** A short-term change for a single week; the usual week comes back after. */
+function OneWeek({ user, coach, onSaved }: { user: User; coach: Coach; onSaved: (msg: string) => void }) {
+  const state = useStore()
+  const first = planningWeek(state.today)
+  const weeks = [0, 1, 2, 3].map((i) => addDays(first, i * 7))
+  const [monday, setMonday] = useState(first)
+  return <OneWeekGrid key={monday} user={user} coach={coach} monday={monday} weeks={weeks} setMonday={setMonday} onSaved={onSaved} />
+}
+
+function OneWeekGrid({ user, coach, monday, weeks, setMonday, onSaved }: { user: User; coach: Coach; monday: string; weeks: string[]; setMonday: (m: string) => void; onSaved: (msg: string) => void }) {
+  const base = coach.weekChanges[monday] ?? coach.availability
+  const [draft, setDraft] = useState<Record<Weekday, number[]>>(base)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(base)
+  return (
+    <>
+      <label className="field">
+        Week
+        <select value={monday} onChange={(e) => setMonday(e.target.value)}>
+          {weeks.map((w) => (
+            <option key={w} value={w}>
+              {weekRange(w)}
+              {coach.weekChanges[w] ? ' (changed)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted small">Changes here apply to this week only. Your usual week comes back after.</p>
+      <AvailabilityGrid value={draft} onChange={setDraft} />
+      <button
+        className="btn primary block"
+        disabled={!dirty}
+        onClick={() => {
+          setWeekChange(user, coach.id, monday, draft)
+          onSaved(`Saved for ${weekRange(monday)} only.`)
+        }}
+      >
+        Save for this week only
+      </button>
+      {coach.weekChanges[monday] && (
+        <button
+          className="btn ghost block"
+          onClick={() => {
+            setWeekChange(user, coach.id, monday, null)
+            onSaved('Back to your usual week.')
+          }}
+        >
+          Undo this week’s change
+        </button>
+      )}
+    </>
+  )
+}
+
+/** Vacations, exams: whole days off. Past ones drop off by themselves. */
+function DaysOff({ user, coach, today, onSaved }: { user: User; coach: Coach; today: string; onSaved: (msg: string) => void }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+  const off = upcomingTimeOff(coach, today)
+  return (
+    <>
+      <p className="muted small">Days you can’t work at all. Your territory manager sees them, and you won’t be offered sessions those days.</p>
+      {off.length === 0 ? (
+        <p className="small muted">No days off coming up.</p>
+      ) : (
+        <ul className="timeoff-list">
+          {off.map((t) => (
+            <li key={t.id}>
+              <span>
+                <strong>
+                  {mediumDate(t.from)}
+                  {t.to !== t.from && ` – ${mediumDate(t.to)}`}
+                </strong>
+                {t.note && <small className="muted"> · {t.note}</small>}
+              </span>
+              <button
+                className="btn small ghost"
+                onClick={() => {
+                  removeTimeOff(user, coach.id, t.id)
+                  onSaved('Day off removed.')
+                }}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setError('')
+          try {
+            addTimeOff(user, coach.id, { from, to: to || from, note: note.trim() || undefined })
+            setFrom('')
+            setTo('')
+            setNote('')
+            onSaved('Days off saved.')
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err))
+          }
+        }}
+      >
+        <label className="field">
+          First day off
+          <input type="date" required min={today} value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="field">
+          Last day off
+          <input type="date" min={from || today} value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <label className="field grow">
+          Reason (optional)
+          <input value={note} placeholder="Vacation, exam…" onChange={(e) => setNote(e.target.value)} />
+        </label>
+        <button className="btn primary" disabled={!from}>
+          Add days off
+        </button>
+      </form>
+      {error && <p className="error">{error}</p>}
     </>
   )
 }

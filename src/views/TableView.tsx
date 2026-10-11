@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { addDays, dayOfWeek, planningWeek, openIssues, prettyDate, prettyTime, WEEKDAY_LONG } from '../engine'
+import { addDays, dayOfWeek, numDate, planningWeek, openIssues, prettyTime, WEEKDAY_LONG } from '../engine'
 import type { SessionStatus, User } from '../engine'
 import { setParams } from '../router'
 import { worldOf } from '../store'
@@ -51,7 +51,7 @@ export function TableView({ user }: { user: User }) {
         </label>
         <label className="check">
           <input type="checkbox" checked={onlyIssues} onChange={(e) => setParams(route, { issues: e.target.checked ? '1' : undefined })} />
-          Only problems (rule issues or no crew)
+          Only problems (rule issues or no coaching staff)
         </label>
       </div>
 
@@ -66,8 +66,8 @@ export function TableView({ user }: { user: User }) {
                 {selected === 'all' && <th>Territory</th>}
                 <th>Center</th>
                 <th>Kids</th>
-                <th>Crew</th>
-                <th>Coach confirmed</th>
+                <th>Coaching staff</th>
+                <th>Confirmed</th>
                 <th>Status</th>
                 <th>Rules</th>
               </tr>
@@ -77,7 +77,7 @@ export function TableView({ user }: { user: User }) {
                 <Fragment key={date}>
                   <tr className={`day-row day-${dayOfWeek(date)}`}>
                     <td colSpan={selected === 'all' ? 8 : 7}>
-                      {WEEKDAY_LONG[dayOfWeek(date)]} · {prettyDate(date).slice(4)}
+                      {WEEKDAY_LONG[dayOfWeek(date)]} · {numDate(date)}
                       {date === state.today && <span className="chip small">Today</span>}
                     </td>
                   </tr>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canAssign, canSeeMoney, intakeSessions, visibleIntakes, visibleRoster, visibleSessions } from '../src/engine'
+import { canAssign, canEditTerms, canSeeMoney, canSeePrice, intakeSessions, visibleIntakes, visibleRoster, visibleSessions } from '../src/engine'
 import type { Intake, User } from '../src/engine'
 import { coach, crew, session } from './fixtures'
 
@@ -15,8 +15,8 @@ const sessions = [
 ]
 const coaches = [coach('lead1', 'lead'), coach('lead2', 'lead'), coach('k1', 'lead', { territoryId: 'knx' })]
 const intakes: Intake[] = [
-  { id: 'i1', salesRepId: 'rep', territoryId: 'lou', centerId: 'A', submittedAt: '', sessionIds: ['lou2'] },
-  { id: 'i2', salesRepId: 'other', territoryId: 'lou', centerId: 'A', submittedAt: '', sessionIds: [] },
+  { id: 'i1', salesRepId: 'rep', territoryId: 'lou', centerId: 'A', submittedAt: '', sessionIds: ['lou2'], schedule: { start: '10:00', end: '11:00', groups: [] }, history: [] },
+  { id: 'i2', salesRepId: 'other', territoryId: 'lou', centerId: 'A', submittedAt: '', sessionIds: [], schedule: { start: '10:00', end: '11:00', groups: [] }, history: [] },
 ]
 
 describe('role-based access', () => {
@@ -51,5 +51,18 @@ describe('role-based access', () => {
   it('coach directory lists only active peers in their own territory', () => {
     const roster = visibleRoster(coachUser, [...coaches, coach('gone', 'lead', { active: false })])
     expect(roster.map((c) => c.id)).toEqual(['lead1', 'lead2'])
+  })
+
+  it('a sales rep sees the price of centers they signed, never coach pay', () => {
+    expect(canSeePrice(rep, intakes[0])).toBe(true)
+    expect(canSeePrice(rep, intakes[1])).toBe(false)
+    expect(canSeeMoney(rep)).toBe(false)
+    expect(canSeePrice(louTM, intakes[1])).toBe(true)
+  })
+
+  it('only an ops admin edits program terms after signing', () => {
+    expect(canEditTerms(admin)).toBe(true)
+    expect(canEditTerms(louTM)).toBe(false)
+    expect(canEditTerms(rep)).toBe(false)
   })
 })

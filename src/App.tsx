@@ -4,12 +4,13 @@ import type { Role, User } from './engine'
 import { ROLE_LABEL } from './ui/format'
 import { go, href, useRoute } from './router'
 import { resetDemo, useStore } from './store'
+import { setGuide, useGuide } from './ui/guide'
 import { AdminDashboard } from './views/AdminDashboard'
 import { CalendarView } from './views/CalendarView'
 import { CoachApp } from './views/CoachApp'
 import { Login } from './views/Login'
 import { Pipeline } from './views/Pipeline'
-import { RosterView } from './views/RosterView'
+import { CoachingStaff } from './views/CoachingStaff'
 import { SalesIntake } from './views/SalesIntake'
 import { SalesSubmissions } from './views/SalesSubmissions'
 import { SessionPanel } from './views/SessionPanel'
@@ -20,13 +21,13 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
     { view: 'dashboard', label: 'Dashboard' },
     { view: 'calendar', label: 'Calendar' },
     { view: 'table', label: 'Table' },
-    { view: 'roster', label: 'Roster' },
+    { view: 'staff', label: 'Coaching Staff' },
     { view: 'pipeline', label: 'Sales pipeline' },
   ],
   territory_manager: [
     { view: 'calendar', label: 'Calendar' },
     { view: 'table', label: 'Table' },
-    { view: 'roster', label: 'Roster' },
+    { view: 'staff', label: 'Coaching Staff' },
     { view: 'pipeline', label: 'Sales pipeline' },
   ],
   sales_rep: [
@@ -76,7 +77,7 @@ export default function App() {
         {view === 'dashboard' && <AdminDashboard user={user} />}
         {view === 'calendar' && <CalendarView user={user} />}
         {view === 'table' && <TableView user={user} />}
-        {view === 'roster' && <RosterView user={user} />}
+        {view === 'staff' && <CoachingStaff user={user} />}
         {view === 'pipeline' && <Pipeline user={user} />}
         {view === 'intake' && <SalesIntake user={user} />}
         {view === 'submissions' && <SalesSubmissions user={user} />}
@@ -97,7 +98,7 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
             ⚽
           </span>
           <span>
-            <strong>Crewboard</strong>
+            <strong>SoccerSessions</strong>
             <small>Bramblewood Youth Soccer · fictional demo</small>
           </span>
         </a>
@@ -106,6 +107,7 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
             {user.name}
             <small>{ROLE_LABEL[user.role]}</small>
           </span>
+          <GuideToggle />
           <a className="btn ghost" href="#/">
             Switch user
           </a>
@@ -114,6 +116,15 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
       </header>
       {children}
     </div>
+  )
+}
+
+function GuideToggle() {
+  const on = useGuide()
+  return (
+    <button className={`btn ghost guide-toggle ${on ? 'on' : ''}`} onClick={() => setGuide(!on)} aria-pressed={on} title="Show or hide explanations of what each screen does">
+      Demo guide: {on ? 'on' : 'off'}
+    </button>
   )
 }
 

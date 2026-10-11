@@ -37,8 +37,24 @@ export interface Coach {
   /** Dollars per hour. Management-only. */
   payRate: number
   active: boolean
-  /** Hours (9..17) the coach is free, per weekday. 9 means 9:00-10:00. */
+  /** Hours (9..17) the coach is usually free, per weekday. 9 means 9:00-10:00. */
   availability: Record<Weekday, number[]>
+  /** Whole days off (vacations, exams). Past entries simply stop mattering. */
+  timeOff: TimeOff[]
+  /** One-week changes, keyed by that week's Monday. They replace the usual week. */
+  weekChanges: Record<string, Record<Weekday, number[]>>
+  /** Monday of the latest week the coach confirmed their availability for. */
+  availabilityConfirmedWeek?: string
+  /** Who changed level, pay rate or contact details, and when. */
+  history: HistoryEntry[]
+}
+
+export interface TimeOff {
+  id: string
+  /** First and last day off, inclusive (YYYY-MM-DD). */
+  from: string
+  to: string
+  note?: string
 }
 
 export interface PointOfContact {
@@ -61,10 +77,20 @@ export interface SpaceProfile {
   backupIndoorSpace: boolean
 }
 
-/** Contract money. Only ops admins and territory managers may see this. */
+export const CYCLE_WEEKS = [1, 2, 4, 8, 12, 20] as const
+export type CycleWeeks = (typeof CYCLE_WEEKS)[number]
+
+/**
+ * What the center bought: entered by sales at signing, confirmed by management.
+ * Customers pay for the whole cycle, not week to week.
+ */
 export interface ProgramTerms {
-  cycleWeeks: 1 | 2 | 4 | 8 | 12 | 20
-  sessionsPerWeek: 1 | 2 | 3
+  /** Date of the first session of the current cycle. */
+  startDate: string
+  cycleWeeks: CycleWeeks
+  /** Which days of the week sessions run (1 to 3 days). */
+  weekdays: Weekday[]
+  /** Total price for the cycle, in dollars. */
   cycleRate: number
 }
 
@@ -79,6 +105,8 @@ export interface Center {
   poc: PointOfContact
   space: SpaceProfile
   terms?: ProgramTerms
+  /** Changes to the program terms after signing. */
+  history?: HistoryEntry[]
 }
 
 /** One group of kids that turns over inside a session block. */
@@ -114,6 +142,7 @@ export const CANCEL_REASONS = {
   low_enrollment: 'Low enrollment',
   contract_ended: 'Contract ended',
   no_coach: 'No coach available',
+  changed_by_sales: 'Program changed before it started',
   other: 'Other',
 } as const
 export type CancelReason = keyof typeof CANCEL_REASONS
@@ -142,6 +171,14 @@ export interface Session {
   notes?: string
 }
 
+/** The scheduling part of a sales intake, kept so the rep can edit it later. */
+export interface IntakeSchedule {
+  start: string
+  end: string
+  groups: Group[]
+  notes?: string
+}
+
 export interface Intake {
   id: string
   salesRepId: string
@@ -149,6 +186,8 @@ export interface Intake {
   centerId: string
   submittedAt: string
   sessionIds: string[]
+  schedule: IntakeSchedule
+  history: HistoryEntry[]
 }
 
 export interface Settings {

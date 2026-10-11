@@ -3,6 +3,53 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.0.0 (2026-10-10 22:40 ET): SoccerSessions, after a full review
+
+Renamed from Crewboard to **SoccerSessions** (new link: lyversemason.github.io/soccer-sessions).
+Everything below came from clicking through v1 and recording notes, the way the original
+system was used day to day.
+
+**Program terms and cycles**
+- The sales rep now enters the program terms at signing: cycle length, 1 to 3 days a week,
+  start date, start and end time, and the price for the whole cycle, with the per-session
+  math shown. Territory managers see them; only an ops admin can change the price later
+  (logged).
+- Every session shows where it falls in its cycle ("session 3 of 8"), when the cycle
+  started and when it really ends. Reschedules and make-up sessions push the end date out;
+  cancelled sessions without a make-up are flagged.
+- The ops admin dashboard lists cycles ending within two weeks, for renewals.
+- Sales reps can edit a submission until a territory manager confirms it. Sessions change
+  in place, extra ones are cancelled with a reason (never deleted), and it's all logged.
+
+**Coaches**
+- Availability belongs to the coach: usual week, one-week changes, and days off (vacations,
+  exams). A weekly "Has your availability changed?" check-in. Managers see it all,
+  including who hasn't confirmed this week, but can't change it.
+- Coaching Staff page (was Roster): click a coach to change level, pay rate, phone, email or
+  active status. Territory managers and ops admins can; every change is logged.
+- Reschedules text the coaching staff to re-confirm (logged); the coach's phone shows
+  "Moved: confirm".
+- Call and text are round icon buttons everywhere.
+
+**Look and wording**
+- Calm light palette (off-white, gray-blue, light tan, gold dates); no dark mode.
+- Dates with the year; week ranges like 10-12-2026 – 10-17-2026.
+- Session panel regrouped: big center name, program box at the top, labeled facility
+  details (space, surface, obstacles, weather backup), groups with a count, coaching staff,
+  status, collapsible history.
+- "Coaching staff" instead of "crew"; "territory manager" everywhere.
+- A red (i) "Coach hasn't confirmed" (click to call or text) replaces "Waiting for coach".
+- One chip per staffing rule replaces "This crew passes every rule"; the Save button shows
+  whether it can save (amber when an override is needed, red when blocked).
+- Explanations moved into an optional **Demo guide** (top right) so screens read like a
+  working tool; a hover tip replaces the "click a territory" instruction.
+- Intake: new groups default to 30 minutes, an explicit end time (with a check that the
+  groups fit), an "Obstacles on site" heading.
+- 158 tests.
+
+Restore this if: you want the original Crewboard design and data model (v1.0.1). Note that
+v1 lived at the old link, which no longer works after the rename.
+
 ## v1.0.1 (2026-10-10 21:40 ET): fixes from the first review
 
 - A "Crew saved." or "Confirmed with the facility." message disappears as soon as the

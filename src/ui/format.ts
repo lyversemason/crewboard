@@ -28,7 +28,7 @@ export function shortWarning(v: Violation): string {
 }
 
 export function crewSummary(s: Session, coaches: Coach[]): string {
-  if (!s.assignments.length) return 'Unassigned'
+  if (!s.assignments.length) return 'No coach assigned'
   return s.assignments.map((a) => coaches.find((c) => c.id === a.coachId)?.name.split(' ')[0] ?? '?').join(', ')
 }
 

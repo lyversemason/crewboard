@@ -9,9 +9,39 @@ export function canSeeTerritory(user: User, territoryId: string): boolean {
   return user.territoryIds.includes(territoryId)
 }
 
-/** Only management sees pay rates and contract money. */
+/** Only management sees coach pay rates and margins. */
 export function canSeeMoney(user: User): boolean {
   return user.role === 'ops_admin' || user.role === 'territory_manager'
+}
+
+/** Program prices: management, plus the sales rep who signed the center. */
+export function canSeePrice(user: User, intake?: Intake): boolean {
+  return canSeeMoney(user) || (user.role === 'sales_rep' && !!intake && intake.salesRepId === user.id)
+}
+
+/** Sales enters the terms; after signing only an ops admin may change them. */
+export function canEditTerms(user: User): boolean {
+  return user.role === 'ops_admin'
+}
+
+/** Level, pay rate, contact details, active: management in that territory. Every change is logged. */
+export function canEditCoach(user: User, coach: Pick<Coach, 'territoryId'>): boolean {
+  return canAssign(user, coach.territoryId)
+}
+
+/** Availability belongs to the coach. Managers can read it, not change it. */
+export function canEditAvailability(user: User, coach: Pick<Coach, 'id'>): boolean {
+  return user.role === 'coach' && user.coachId === coach.id
+}
+
+/**
+ * A rep can change their own submission while a territory manager hasn't
+ * confirmed any of its sessions and the program hasn't started.
+ */
+export function canEditIntake(user: User, intake: Intake, sessions: Session[], today: string): boolean {
+  if (user.role !== 'sales_rep' || intake.salesRepId !== user.id) return false
+  const mine = sessions.filter((s) => s.intakeId === intake.id && s.status !== 'cancelled')
+  return mine.length > 0 && mine.every((s) => s.status === 'pending' && s.date > today)
 }
 
 export function canAssign(user: User, territoryId: string): boolean {

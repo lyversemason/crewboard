@@ -5,12 +5,12 @@
 
 import { chromium } from 'playwright-core'
 
-const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:10003/'
+const BASE = process.env.BASE_URL ?? 'http://localhost:10003/'
 const OUT = 'docs/screenshots'
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? '/usr/bin/chromium' })
 
 async function page(width = 1440, height = 900) {
-  const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: 'dark' })
+  const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: 'light' })
   return ctx.newPage()
 }
 
@@ -24,7 +24,8 @@ async function shot(name, hash, { width, height, before } = {}) {
 }
 
 await shot('1-login', '', { height: 760 })
-await shot('2-calendar', 'admin/calendar')
+await shot('2-calendar', 'tm-lou/calendar')
+await shot('9-staff', 'tm-lou/staff', { height: 760 })
 await shot('6-admin', 'admin/dashboard', { height: 760 })
 await shot('5-coach', '', {
   width: 430,
@@ -33,10 +34,10 @@ await shot('5-coach', '', {
   before: async (p) => p.locator('.coach-card .role-cta').click(),
 })
 
-// Session with a recorded travel-time override.
+// Session with its program cycle and a coach who hasn't confirmed.
 await shot('3-session-panel', 'tm-lou/calendar', {
-  height: 860,
-  before: async (p) => p.locator('.event', { has: p.locator('.flag.override') }).first().click(),
+  height: 900,
+  before: async (p) => p.locator('.event', { hasText: 'hasn’t confirmed' }).first().click(),
 })
 
 // Override dialog: put an assistant alone on a session -> "No certified Lead Coach".
@@ -50,9 +51,9 @@ await shot('4-override-dialog', 'tm-lou/calendar', {
         await p.keyboard.press('Escape')
         continue
       }
-      for (const btn of await p.locator('.crew-list .icon-btn').all()) await btn.click()
+      while (await p.locator('.staff-list .icon-btn').count()) await p.locator('.staff-list .icon-btn').first().click()
       await p.locator('select[aria-label="Add a coach"]').selectOption(await free.first().getAttribute('value'))
-      await p.getByRole('button', { name: 'Save crew' }).click()
+      await p.locator('button.save-override').click()
       return
     }
   },
@@ -67,9 +68,12 @@ await shot('4-override-dialog', 'tm-lou/calendar', {
   const sat = await p.evaluate(() => {
     const d = new Date()
     d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7))
-    return d.toISOString().slice(0, 10)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })
-  await p.getByLabel('First session').fill(sat)
+  await p.getByLabel('Starting').fill(sat)
+  await p.getByRole('button', { name: 'Tue', exact: true }).click()
+  await p.getByRole('button', { name: 'Sat', exact: true }).click()
+  await p.getByLabel('Cycle price ($)').fill('1440')
   await p.getByLabel('Group 1 kids').fill('40')
   await p.waitForTimeout(250)
   await p.screenshot({ path: `${OUT}/7-intake-blocked.png` })
