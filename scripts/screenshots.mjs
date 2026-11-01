@@ -101,6 +101,7 @@ await shot('10-accounts', 'admin/accounts', {
 
 // Audit log: a manager's override at the top.
 await shot('11-audit-log', 'admin/audit', { height: 760 })
+await shot('15-hours-pay', 'admin/pay', { height: 1000 })
 
 await browser.close()
 console.log('Screenshots written to', OUT)

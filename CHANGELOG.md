@@ -3,6 +3,35 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v3.1.0 (2026-11-01 ET): Hours & pay
+
+A new **Hours & pay** tab for operations admins and territory managers (the roadmap's
+"hours × pay rate dashboard"). Sales reps and coaches don't get it: it shows pay rates
+and prices.
+
+- Pick a week, a 3-week pay period (Monday to Sunday, counted from January 5, 2026) or a
+  month, step back and forward, and jump back to the current one.
+- Four totals: coaching hours, coach pay, program revenue and what's left after coach
+  pay, each split into delivered (before today) and scheduled.
+- A yellow note when sessions still need coaching staff, since their pay isn't counted
+  yet.
+- Week by week: 13 weeks around the period shown, coach pay with what's left on top
+  (the whole column is the revenue). Hover or tab to a week for its numbers, click it to
+  open that week, or show the chart as a table.
+- By territory (all territories), by program (lowest share left after pay first, red if
+  a program costs more than it earns, with sessions that still need staff) and by coach
+  (shifts, hours, rate, pay; active coaches with no shifts listed underneath).
+- **Download payroll (CSV)**: one row per coach per session in the period.
+- How it's counted: a coach is paid for the whole session at their own rate; cancelled
+  and moved sessions cost and earn nothing; a program's price is split evenly over the
+  sessions of its cycle, so a make-up takes the place of the session it replaces and
+  never earns twice. Drive time, equipment and office costs aren't included.
+- The calculations are in `src/engine/pay.ts` with 21 new tests (257 in all), including
+  checks that the parts add up to the totals on the demo company.
+- Needs no database changes: in the database version management can already read pay
+  rates and prices, and nobody else gets the tab. Clicked through in the demo; not yet
+  clicked through against the local database.
+
 ## v3.0.0 (2026-11-01 ET): the database version, complete
 
 The accounts plan (docs/accounts-plan.md) is done: SoccerSessions now also runs with real

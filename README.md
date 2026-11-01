@@ -35,6 +35,9 @@ Turn on **Demo guide** (top right) for a short explanation on each screen.
    (renewal time). Change the safety buffer from 30 to 60 minutes and watch new
    drive-time issues appear across territories. Then open **Accounts**, invite a coach and
    accept the invitation from the on-screen email, and find all of it in the **Audit log**.
+   Finally open **Hours & pay**: coaching hours, coach pay and program revenue by week,
+   3-week pay period or month, the programs that keep the least after coach pay, and a
+   payroll download.
 
 Everything you change is saved in your browser only. **Reset demo** restores it.
 
@@ -51,6 +54,7 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 | **Territory manager views** | Week calendar with a one-day view (every territory side by side), a filterable table with live rule badges, plus Coaching Staff: click a coach to change level, pay rate or contact details (logged), and see availability and weekly check-ins read-only. |
 | **Accounts** | People are added by invitation, never with a password someone hands out: ops admins invite anyone, territory managers invite coaches into their own territory. In the demo the invite email is shown on screen with a button to accept it. Turning access off locks someone out at once and lists the upcoming sessions to re-staff; nothing is deleted and every change is in the person's account history. Nobody can turn off their own access, and the last operations admin can't be removed or demoted. |
 | **Audit log** | Operations admins see every logged change in the company, newest first: who, what and when, with a link to the session, coach or person it was about. Filter by person or kind of record, or search. The log can only be added to: in the database version nobody can edit or delete an entry, administrators and server code included. |
+| **Hours & pay** | For management only: coaching hours, coach pay, program revenue and what's left after coach pay, for a week, a 3-week pay period or a month, split into delivered and scheduled. A week-by-week chart (click a week to open it, or show it as a table), then breakdowns by territory, by program (lowest share left after pay first, for pricing renewals) and by coach, including active coaches with no shifts. Coaches are paid for the whole session at their own rate; a program's price is split evenly over the sessions of its cycle, so make-ups don't earn twice and cancellations earn nothing. **Download payroll (CSV)** gives one row per coach per session. |
 | **Coach phone view** | My shifts by day, a full shift package, tap-to-map, call and text buttons, confirm one shift or the whole week (confirmations open the Sunday before each week, never weeks ahead), a weekly "has your availability changed?" check-in, usual week, one-week changes and days off. |
 
 <table>
@@ -82,6 +86,8 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 <td>Audit log: every logged change in the company, who made it and when.</td>
 </tr>
 </table>
+
+![Hours & pay: coaching hours, coach pay and program revenue for the month, week by week and by territory](docs/screenshots/15-hours-pay.png)
 
 <img src="docs/screenshots/5-coach.png" alt="Coach phone view" width="320">
 
@@ -142,7 +148,7 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 236 automated tests (plus 41 that run against the
+3. **Tests for every rule.** 257 automated tests (plus 41 that run against the
    database) cover the edge cases that matter in the field: a gap exactly equal to
    drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
@@ -227,6 +233,6 @@ Every release is tagged and described in plain language in [CHANGELOG.md](CHANGE
 
 ## Roadmap
 
-Hours × pay rate by week, month and 3-week pay cycle · calendar subscription (iCal) for
+Calendar subscription (iCal) for
 coaches · bulk-copy a schedule across N weeks · equipment bag inventory and custody ·
 real SMS reminders.

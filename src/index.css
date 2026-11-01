@@ -613,3 +613,51 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
 .loading { text-align: center; color: var(--muted); padding: 3em 1em; }
 .saving { font-size: 0.8rem; font-weight: 600; color: var(--brand-ink); opacity: 0.85; }
 .toast.problem { background: var(--bad); color: #fff; animation: none; cursor: pointer; max-width: min(28rem, calc(100vw - 2.5em)); }
+
+/* Hours & pay. Chart colors checked for color-blind separation and contrast on the card. */
+:root { --chart-pay: #2a699e; --chart-left: #a0702f; }
+.pay { display: grid; gap: 1em; }
+.pay > .toolbar, .pay > .date-head { margin-bottom: 0; }
+.pager { display: inline-flex; gap: 0.3em; }
+.pager .btn { min-width: 2.2em; justify-content: center; }
+.pay-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1em; }
+.pay-tile { display: flex; flex-direction: column; gap: 0.15em; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--brand); border-radius: var(--radius); padding: 0.8em 1.1em; box-shadow: var(--shadow); }
+.pay-tile.bad { border-top-color: var(--bad); }
+.pay-tile.bad .pay-value { color: var(--bad); }
+.pay-label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.pay-value { font-size: 1.7rem; font-weight: 700; color: var(--charcoal); }
+.pay-sub { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pay-note { margin: 0; color: var(--pending); background: var(--pending-soft); border-left: 3px solid var(--pending-line); padding: 0.45em 0.75em; border-radius: 6px; font-size: 0.88rem; }
+.pay-cols { display: grid; grid-template-columns: 3fr 2fr; gap: 1em; align-items: start; }
+.pay .card { min-width: 0; }
+.pay .table-wrap { box-shadow: none; }
+.grid td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grid tr.row.static { cursor: default; }
+.grid tr.row.picked td { background: var(--tan-soft); }
+.grid tr.losing td:first-child { box-shadow: inset 4px 0 0 var(--bad); }
+.pay-who { display: inline-flex; align-items: center; gap: 0.4em; flex-wrap: wrap; }
+.pay-who + small { display: block; }
+.week-chart { position: relative; }
+.chart-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75em; flex-wrap: wrap; margin-bottom: 0.4em; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.3em 1.1em; list-style: none; margin: 0; padding: 0; font-size: 0.82rem; }
+.legend li { display: inline-flex; align-items: center; gap: 0.4em; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.small-btn { font-size: 0.8rem; padding: 0.3em 0.7em; }
+.chart-box { position: relative; width: 100%; }
+.chart-box svg { display: block; overflow: visible; }
+.chart-grid { stroke: var(--surface-3); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-axis { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-tick.now { font-weight: 700; fill: var(--charcoal); }
+.chart-picked { fill: var(--tan-soft); }
+.chart-hover { fill: var(--brand-soft); opacity: 0.55; }
+.chart-col { cursor: pointer; outline: none; }
+.chart-col:focus-visible .chart-hover { stroke: var(--brand); stroke-width: 2; }
+.chart-tip { position: absolute; transform: translateX(14px); pointer-events: none; background: var(--field); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 0.5em 0.7em; font-size: 0.8rem; display: grid; gap: 0.15em; min-width: 12rem; z-index: 2; }
+.chart-tip.left { transform: translateX(calc(-100% - 14px)); }
+.chart-tip span { display: flex; align-items: center; gap: 0.4em; }
+.chart-tip b { margin-left: auto; padding-left: 1em; font-variant-numeric: tabular-nums; }
+.chart-tip .swatch { width: 9px; height: 9px; }
+@media (max-width: 1100px) { .pay-cols { grid-template-columns: 1fr; } }
+.grid th.num { text-align: right; }
+.pay-idle { margin: 0.75em 0 0; }

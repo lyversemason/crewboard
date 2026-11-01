@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import { canSeeMoney } from './engine'
 import type { Role, User } from './engine'
 import { ROLE_LABEL } from './ui/format'
 import { go, href, useRoute } from './router'
@@ -10,6 +11,7 @@ import { Accounts } from './views/Accounts'
 import { AdminDashboard } from './views/AdminDashboard'
 import { AuditLog } from './views/AuditLog'
 import { CalendarView } from './views/CalendarView'
+import { HoursPay } from './views/HoursPay'
 import { CoachApp } from './views/CoachApp'
 import { Login } from './views/Login'
 import { NoAccess, SignIn } from './views/SignIn'
@@ -26,6 +28,7 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
     { view: 'calendar', label: 'Calendar' },
     { view: 'table', label: 'Table' },
     { view: 'staff', label: 'Coaching Staff' },
+    { view: 'pay', label: 'Hours & pay' },
     { view: 'pipeline', label: 'Sales pipeline' },
     { view: 'accounts', label: 'Accounts' },
     { view: 'audit', label: 'Audit log' },
@@ -34,6 +37,7 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
     { view: 'calendar', label: 'Calendar' },
     { view: 'table', label: 'Table' },
     { view: 'staff', label: 'Coaching Staff' },
+    { view: 'pay', label: 'Hours & pay' },
     { view: 'pipeline', label: 'Sales pipeline' },
     { view: 'accounts', label: 'Accounts' },
   ],
@@ -130,6 +134,7 @@ function Shell({ user }: { user: User }) {
         {view === 'calendar' && <CalendarView user={user} />}
         {view === 'table' && <TableView user={user} />}
         {view === 'staff' && <CoachingStaff user={user} />}
+        {view === 'pay' && canSeeMoney(user) && <HoursPay user={user} />}
         {view === 'pipeline' && <Pipeline user={user} />}
         {view === 'accounts' && <Accounts user={user} />}
         {view === 'audit' && <AuditLog user={user} />}
