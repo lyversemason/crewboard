@@ -3,6 +3,7 @@ import { addDays, cycleStatus, endingSoon, fullDate, mondayOf, dateSpan, plannin
 import type { Settings, User } from '../engine'
 import { href } from '../router'
 import { updateSettings, useStore, worldOf } from '../store'
+import { attempt } from '../ui/problems'
 import { Hint, Toast } from '../ui/bits'
 import { money, shortWarning } from '../ui/format'
 
@@ -155,10 +156,12 @@ function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
         <button
           className={`btn ${dirty ? 'save-ready' : 'save-idle'}`}
           disabled={!dirty}
-          onClick={async () => {
-            await updateSettings(user, draft)
-            setToast('Settings saved. Every session was re-checked.')
-          }}
+          onClick={() =>
+            attempt(async () => {
+              await updateSettings(user, draft)
+              setToast('Settings saved. Every session was re-checked.')
+            })
+          }
         >
           Save settings
         </button>

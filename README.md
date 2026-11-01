@@ -47,6 +47,7 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 | **Session lifecycle** | Pending → confirmed → rescheduled / cancelled. **Nothing is ever deleted**: a reschedule keeps the original, links a new session and texts the coaching staff to re-confirm; a cancellation needs a reason code. Both take an optional note (up to 300 characters). Every change is logged with who and when. |
 | **Territory manager views** | Week calendar with a one-day view (every territory side by side), a filterable table with live rule badges, plus Coaching Staff: click a coach to change level, pay rate or contact details (logged), and see availability and weekly check-ins read-only. |
 | **Accounts** | People are added by invitation, never with a password someone hands out: ops admins invite anyone, territory managers invite coaches into their own territory. In the demo the invite email is shown on screen with a button to accept it. Turning access off locks someone out at once and lists the upcoming sessions to re-staff; nothing is deleted and every change is in the person's account history. Nobody can turn off their own access, and the last operations admin can't be removed or demoted. |
+| **Audit log** | Operations admins see every logged change in the company, newest first: who, what and when, with a link to the session, coach or person it was about. Filter by person or kind of record, or search. The log can only be added to: in the database version nobody can edit or delete an entry, administrators and server code included. |
 | **Coach phone view** | My shifts by day, a full shift package, tap-to-map, call and text buttons, confirm one shift or the whole week (confirmations open the Sunday before each week, never weeks ahead), a weekly "has your availability changed?" check-in, usual week, one-week changes and days off. |
 
 <table>
@@ -82,7 +83,7 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 226 automated tests (plus 29 that run against the
+3. **Tests for every rule.** 236 automated tests (plus 41 that run against the
    database) cover the edge cases that matter in the field: a gap exactly equal to
    drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
@@ -144,7 +145,7 @@ The public demo needs nothing else. For the database version in progress (see
 ```bash
 npm run db:start  # build the server function, start the local database (first run downloads the images)
 npm run db:reset  # empty it and load the fictional company, with a sign-in per person
-npm run test:db   # sign in as every role and check what the database lets each one read
+npm run test:db   # sign in as every role: what each may read, and every kind of change saved
 npm run dev:live  # the app in live mode at http://127.0.0.1:5173: sign in by email
                   # (emails land in the local catcher at http://127.0.0.1:54324)
 npm run db:stop

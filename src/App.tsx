@@ -3,11 +3,12 @@ import type { ReactNode } from 'react'
 import type { Role, User } from './engine'
 import { ROLE_LABEL } from './ui/format'
 import { go, href, useRoute } from './router'
-import { READ_ONLY_MESSAGE } from './data/live'
-import { auth, mode, resetDemo, useAuth, useStore } from './store'
+import { auth, mode, resetDemo, useAuth, useSaving, useStore } from './store'
+import { clearProblem, useProblem } from './ui/problems'
 import { setGuide, useGuide } from './ui/guide'
 import { Accounts } from './views/Accounts'
 import { AdminDashboard } from './views/AdminDashboard'
+import { AuditLog } from './views/AuditLog'
 import { CalendarView } from './views/CalendarView'
 import { CoachApp } from './views/CoachApp'
 import { Login } from './views/Login'
@@ -27,6 +28,7 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
     { view: 'staff', label: 'Coaching Staff' },
     { view: 'pipeline', label: 'Sales pipeline' },
     { view: 'accounts', label: 'Accounts' },
+    { view: 'audit', label: 'Audit log' },
   ],
   territory_manager: [
     { view: 'calendar', label: 'Calendar' },
@@ -130,6 +132,7 @@ function Shell({ user }: { user: User }) {
         {view === 'staff' && <CoachingStaff user={user} />}
         {view === 'pipeline' && <Pipeline user={user} />}
         {view === 'accounts' && <Accounts user={user} />}
+        {view === 'audit' && <AuditLog user={user} />}
         {view === 'intake' && <SalesIntake user={user} />}
         {view === 'submissions' && <SalesSubmissions user={user} />}
       </main>
@@ -154,6 +157,7 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
           </span>
         </a>
         <div className="who">
+          <SavingSign />
           <span className="who-name">
             {user.name}
             <small>{ROLE_LABEL[user.role]}</small>
@@ -173,8 +177,32 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
           )}
         </div>
       </header>
-      {mode === 'live' && <p className="callout live-note">{READ_ONLY_MESSAGE}</p>}
       {children}
+      <ProblemToast />
+    </div>
+  )
+}
+
+function SavingSign() {
+  return useSaving() ? (
+    <span className="saving" role="status">
+      Saving…
+    </span>
+  ) : null
+}
+
+/** "That didn't work, because…" for buttons without their own error spot. */
+function ProblemToast() {
+  const message = useProblem()
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(clearProblem, 8000)
+    return () => clearTimeout(t)
+  }, [message])
+  if (!message) return null
+  return (
+    <div className="toast problem" role="alert" onClick={clearProblem}>
+      {message}
     </div>
   )
 }

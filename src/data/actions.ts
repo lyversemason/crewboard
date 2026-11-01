@@ -51,10 +51,13 @@ import type {
   Weekday,
   World,
 } from '../engine'
+import type { AuditEntry } from './audit'
 import type { DemoData } from './seed'
 
 export interface State extends DemoData {
   today: string
+  /** The company-wide audit log, oldest first. Only ops admins get it in live mode. */
+  audit: AuditEntry[]
 }
 
 /** What every action gets: the data, who is asking, and the time of the change. */
@@ -711,9 +714,5 @@ export type ActionName = keyof typeof ACTIONS
 export type ActionArgs<N extends ActionName> = (typeof ACTIONS)[N] extends (ctx: Ctx, ...args: infer A) => unknown ? A : never
 export type ActionResult<N extends ActionName> = ReturnType<(typeof ACTIONS)[N]>['result']
 
-/**
- * Actions live mode can run so far (on the server, supabase/functions/run-action).
- * The rest arrive with the audit log (docs/accounts-plan.md, phase 5).
- * acceptInvite isn't here: in live mode the database accepts on first sign-in.
- */
-export const SERVER_ACTIONS: readonly ActionName[] = ['inviteUser', 'resendInvite', 'deactivateUser', 'reactivateUser', 'changeAccess']
+/** In live mode the database accepts an invitation on first sign-in instead. */
+export const DEMO_ONLY_ACTIONS: readonly ActionName[] = ['acceptInvite']

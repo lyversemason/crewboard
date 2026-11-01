@@ -16,12 +16,15 @@ const db = localDb()
 const server = serverClient(db)
 let truth: State
 let profiles: ProfileRow[]
+let auditTotal: number
 
 beforeAll(async () => {
   const rows = Object.fromEntries(await Promise.all(TABLE_ORDER.map(async (t) => [t, await readAll(server, t)]))) as Rows
   if (!rows.territories.length) throw new Error('The local database is empty. Run `npm run db:reset` first.')
   truth = fromRows(rows, new Date().toISOString().slice(0, 10))
   profiles = rows.profiles
+  auditTotal = (await server.from('audit_log').select('*', { count: 'exact', head: true })).count!
+  if (!auditTotal) throw new Error('Expected the seed to fill the audit log.')
 })
 
 async function signIn(user: User): Promise<SupabaseClient> {
@@ -91,6 +94,8 @@ describe('each person reads exactly what access.ts allows', () => {
     expect(await ids(client, 'profiles'), `${user.id} profiles`).toEqual(want.profiles)
     expect(await ids(client, 'territories'), `${user.id} territories`).toEqual(sortedIds(truth.territories))
     expect((await ids(client, 'settings')).length, `${user.id} settings`).toBe(1)
+    const { count } = await client.from('audit_log').select('*', { count: 'exact', head: true })
+    expect(count, `${user.id} audit log`).toBe(user.role === 'ops_admin' ? auditTotal : 0)
     await client.auth.signOut()
   }
 })
@@ -98,7 +103,7 @@ describe('each person reads exactly what access.ts allows', () => {
 describe('nobody else reads anything', () => {
   it('someone not signed in gets nothing', async () => {
     const client = browserClient(db)
-    for (const table of TABLE_ORDER) {
+    for (const table of [...TABLE_ORDER, 'audit_log']) {
       const { data } = await client.from(table).select('*')
       expect(data ?? [], table).toEqual([])
     }
@@ -116,7 +121,7 @@ describe('nobody else reads anything', () => {
 
     it('can still sign in to the account but sees nothing', async () => {
       const client = await signIn(who())
-      for (const table of TABLE_ORDER) {
+      for (const table of [...TABLE_ORDER, 'audit_log']) {
         if (table === 'profiles') continue
         const { data } = await client.from(table).select('*')
         expect(data ?? [], table).toEqual([])

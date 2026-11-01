@@ -1,13 +1,15 @@
 // Where the app's data lives. Screens never talk to a source directly: they
-// go through src/store.ts, which picks one. Today there is only the demo
-// source (this browser's copy of the fictional company). A live source backed
-// by a shared database is planned in docs/accounts-plan.md; it will run the
-// same named actions on a server, which is why `run` is async.
+// go through src/store.ts, which picks one: the demo source (this browser's
+// copy of the fictional company) or the live source (src/data/live.ts), which
+// runs the same named actions and queries on a server, which is why they're async.
 
 import { mondayOf, todayLocal } from '../engine'
 import type { User } from '../engine'
 import { ACTIONS } from './actions'
 import type { ActionArgs, ActionName, ActionResult, State } from './actions'
+import { auditEntries, auditFromHistory } from './audit'
+import { QUERIES } from './queries'
+import type { QueryArgs, QueryName, QueryResult } from './queries'
 import { buildDemo } from './seed'
 
 export interface DataSource {
@@ -18,6 +20,8 @@ export interface DataSource {
   subscribe(listener: () => void): () => void
   /** Runs one action as `user`. Refusals (no permission, broken rule) reject with a LifecycleError. */
   run<N extends ActionName>(name: N, user: User, args: ActionArgs<N>): Promise<ActionResult<N>>
+  /** Asks a question that changes nothing (see queries.ts). */
+  query<N extends QueryName>(name: N, user: User, args: QueryArgs<N>): Promise<QueryResult<N>>
   /** Demo only: rebuild the fictional company and discard every change. */
   reset?(): void
 }
@@ -27,8 +31,12 @@ const KEY = 'soccersessions:v4'
 
 function fresh(): State {
   const today = todayLocal()
-  return { ...buildDemo(today), today }
+  const company = { ...buildDemo(today), today, audit: [] }
+  return { ...company, audit: auditFromHistory(company) }
 }
+
+/** The demo keeps the newest entries; a real log keeps everything. */
+const DEMO_AUDIT_LIMIT = 2000
 
 function load(): State {
   try {
@@ -36,7 +44,7 @@ function load(): State {
     if (raw) {
       const saved = JSON.parse(raw) as State
       // A saved demo from an older week would look stale: rebuild it.
-      if (saved.seededForWeek === mondayOf(todayLocal())) return { ...saved, today: todayLocal() }
+      if (saved.seededForWeek === mondayOf(todayLocal()) && Array.isArray(saved.audit)) return { ...saved, today: todayLocal() }
     }
   } catch {
     /* storage blocked or corrupt: fall through to a fresh demo */
@@ -67,10 +75,19 @@ export function demoSource(): DataSource {
       return () => listeners.delete(listener)
     },
     async run(name, user, args) {
+      const at = new Date().toISOString()
       const action = ACTIONS[name] as (...a: unknown[]) => { state: State; result: ActionResult<typeof name> }
-      const outcome = action({ state, user, at: new Date().toISOString() }, ...args)
-      if (outcome.state !== state) commit(outcome.state)
+      const outcome = action({ state, user, at }, ...args)
+      if (outcome.state !== state) {
+        let n = state.audit.length ? Number(state.audit.at(-1)!.id.slice(1)) : 0
+        const added = auditEntries(state, outcome.state, user, name, at).map((e) => ({ ...e, id: `a${++n}` }))
+        commit({ ...outcome.state, audit: [...state.audit, ...added].slice(-DEMO_AUDIT_LIMIT) })
+      }
       return outcome.result
+    },
+    async query(name, user, args) {
+      const query = QUERIES[name] as (...a: unknown[]) => QueryResult<typeof name>
+      return query({ state, user, at: new Date().toISOString() }, ...args)
     },
     reset: () => commit(fresh()),
   }

@@ -7,6 +7,7 @@
 import { DEFAULT_SETTINGS, mondayOf } from '../engine'
 import type { Center, Coach, Intake, Session, Settings, Territory, User } from '../engine'
 import type { State } from './actions'
+import type { AuditEntry, NewAuditEntry } from './audit'
 
 export interface TerritoryRow {
   id: string
@@ -116,6 +117,39 @@ export interface SettingsRow {
   ratio: number
   max_override_ratio: number
 }
+
+/** The audit log isn't part of Rows: it's only ever added to, never diffed. */
+export interface AuditRow {
+  id: number
+  at: string
+  actor_id: string | null
+  actor_name: string
+  action: string
+  target_type: AuditEntry['targetType']
+  target_id: string
+  text: string
+}
+
+export const auditToRow = (e: NewAuditEntry): Omit<AuditRow, 'id'> => ({
+  at: e.at,
+  actor_id: e.actorId,
+  actor_name: e.actorName,
+  action: e.action,
+  target_type: e.targetType,
+  target_id: e.targetId,
+  text: e.text,
+})
+
+export const auditFromRow = (r: AuditRow): AuditEntry => ({
+  id: String(r.id),
+  at: new Date(r.at).toISOString(),
+  actorId: r.actor_id ?? '',
+  actorName: r.actor_name,
+  action: r.action,
+  targetType: r.target_type,
+  targetId: r.target_id,
+  text: r.text,
+})
 
 export interface Rows {
   territories: TerritoryRow[]
@@ -251,7 +285,7 @@ const when = (t: string | null) => (t === null ? undefined : iso(t))
  * rows simply mean "not yours to see": a coach gets no pay rates, so their
  * coaches come back with payRate 0 and an empty change log.
  */
-export function fromRows(rows: Rows, today: string): State {
+export function fromRows(rows: Rows, today: string, audit: AuditRow[] = []): State {
   const pay = new Map(rows.coach_private.map((p) => [p.coach_id, p]))
   const terms = new Map(rows.center_terms.map((t) => [t.center_id, t]))
   const crews = new Map<string, AssignmentRow[]>()
@@ -352,6 +386,7 @@ export function fromRows(rows: Rows, today: string): State {
       }),
     ),
     settings,
+    audit: [...audit].sort((a, b) => a.id - b.id).map(auditFromRow),
   }
 }
 

@@ -1,10 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CYCLE_WEEKS,
   addDays,
   canEditIntake,
   canSeeTerritory,
-  checkProgramCoverage,
   dayOfWeek,
   dayProblems,
   daysLabel,
@@ -17,18 +16,15 @@ import {
   plannedSessions,
   prettyDate,
   prettyTime,
-  suggestSlots,
   toMinutes,
-  weekdayOf,
-  weeklyDates,
   WEEKDAY_LONG,
 } from '../engine'
-import type { CoverageRequest, CycleWeeks, Group, Intake, ProgramDay, SpaceProfile, User, Weekday } from '../engine'
+import type { CycleWeeks, Group, Intake, ProgramDay, SpaceProfile, User, Weekday } from '../engine'
 import { CITY, handAddress } from '../data/places'
 import type { HandAddress } from '../data/places'
 import { href, useRoute } from '../router'
-import { getState, submitIntake, updateIntake, useStore, worldOf } from '../store'
-import type { IntakeInput } from '../store'
+import { getState, mode, salesCoverage, submitIntake, updateIntake, useStore } from '../store'
+import type { CoverageAnswer, CoverageInput, IntakeInput } from '../store'
 import { addressLine } from '../ui/address'
 import type { PickedAddress } from '../ui/address'
 import { AddressSearch } from '../ui/AddressSearch'
@@ -104,6 +100,8 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const [tried, setTried] = useState(false)
   const [done, setDone] = useState<string | null>(null)
   const [error, setError] = useState('')
+  // A live submission takes a moment: one click, one center.
+  const [submitting, setSubmitting] = useState(false)
   const goManual = useCallback(() => setManual(true), [setManual])
 
   const touch = (f: Field) => setTouched((t) => new Set(t).add(f))
@@ -121,25 +119,39 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const plan = useMemo(() => plannedSessions(sorted, weeks), [sorted, weeks])
   const daysOk = sorted.length > 0 && problems.every((p) => p.length === 0)
 
-  // When editing, the submission's own sessions mustn't count as conflicts.
-  const world = useMemo(() => {
-    const w = worldOf(state)
-    return editing ? { ...w, sessions: w.sessions.filter((s) => s.intakeId !== editing.id) } : w
-  }, [state, editing])
   const lat = location?.lat
   const lng = location?.lng
-  // Memoized so the coverage check only re-runs when the program actually changes.
-  const coverage = useMemo(
-    () => (daysOk && lat !== undefined && lng !== undefined ? checkProgramCoverage(territoryId, { lat, lng }, sorted, weeks, world) : null),
-    [daysOk, lat, lng, territoryId, sorted, weeks, world],
+  // The coverage check asks the data source: the demo answers at once; live
+  // mode asks the server, which can see every session (a rep can't).
+  const coverageInput = useMemo<CoverageInput | null>(
+    () => (daysOk && lat !== undefined && lng !== undefined ? { territoryId, location: { lat, lng }, days: sorted, cycleWeeks: weeks, editingIntakeId: editing?.id } : null),
+    [daysOk, lat, lng, territoryId, sorted, weeks, editing],
   )
-  // Open slots for the first day that can't be staffed.
-  const stuck = coverage && !coverage.ok ? sorted.find((d) => coverage.dates.some((c) => !c.ok && weekdayOf(c.date) === d.weekday)) : undefined
-  const suggestions = useMemo(() => {
-    if (!stuck || lat === undefined || lng === undefined) return []
-    const req: CoverageRequest = { territoryId, location: { lat, lng }, dates: weeklyDates(stuck.firstDate, weeks), start: stuck.start, end: stuck.end, groups: stuck.groups }
-    return suggestSlots(req, world).filter((sg) => sg.weekdays[0] === stuck.weekday || !days.some((d) => d.weekday === sg.weekdays[0]))
-  }, [stuck, lat, lng, territoryId, weeks, world, days])
+  const checkKey = coverageInput ? JSON.stringify(coverageInput) : ''
+  const [checked, setChecked] = useState<{ key: string; answer?: CoverageAnswer; problem?: string } | null>(null)
+  useEffect(() => {
+    if (!coverageInput) return
+    let current = true
+    // Live mode waits for typing to pause before asking the server.
+    const t = setTimeout(
+      () =>
+        salesCoverage(user, coverageInput).then(
+          (answer) => current && setChecked({ key: checkKey, answer }),
+          (e: unknown) => current && setChecked({ key: checkKey, problem: e instanceof Error ? e.message : String(e) }),
+        ),
+      mode === 'live' ? 400 : 0,
+    )
+    return () => {
+      current = false
+      clearTimeout(t)
+    }
+    // `state` too: a change elsewhere (another submission) can change the answer.
+  }, [checkKey, coverageInput, user, state])
+  const answer = checked?.key === checkKey ? checked : null
+  const coverage = answer?.answer?.coverage ?? null
+  const suggestions = answer?.answer?.suggestions ?? []
+  // The first day that can't be staffed, and open slots to offer instead.
+  const stuck = answer?.answer?.stuckWeekday !== undefined ? sorted.find((d) => d.weekday === answer.answer!.stuckWeekday) : undefined
 
   const errors: Record<Field, string | null> = {
     name: name.trim() ? null : 'Enter the center’s name.',
@@ -154,6 +166,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   const firstError = (Object.keys(errors) as Field[]).find((f) => errors[f])
 
   const submit = async () => {
+    if (submitting) return
     setError('')
     setTried(true)
     if (firstError) {
@@ -178,12 +191,15 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
         days: sorted.map((d) => ({ weekday: d.weekday, firstDate: d.firstDate, start: d.start, end: d.end, groups: d.groups.map((g) => ({ ...g, supportNotes: g.supportNotes?.trim() || undefined })) })),
         notes: notes.trim() || undefined,
       }
+      setSubmitting(true)
       if (editing) {
         await updateIntake(user, editing.id, input)
         setDone(editing.id)
       } else setDone(await submitIntake(user, input))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -577,6 +593,8 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
         <h3>Can our coaching staff cover this?</h3>
         {!location && <p className="muted">Pick the address to start the live check.</p>}
         {location && !daysOk && <p className="muted">Fix the program days above to run the check.</p>}
+        {coverageInput && !answer && <p className="muted">Checking…</p>}
+        {answer?.problem && <p className="error">{answer.problem}</p>}
         {coverage && (
           <>
             <div className={`verdict ${coverage.ok ? 'yes' : 'no'}`}>
@@ -611,7 +629,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
             )}
           </>
         )}
-        <button className="btn primary block" disabled={!coverage?.ok} onClick={submit}>
+        <button className="btn primary block" disabled={!coverage?.ok || submitting} onClick={submit}>
           {editing ? 'Save changes' : 'Submit center'}
         </button>
         {!coverage?.ok && location && daysOk && <p className="small bad">Submit stays locked until the coaching staff can cover every date.</p>}

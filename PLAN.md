@@ -145,10 +145,13 @@ API, real authentication and a shared database (planned in
 - **`src/data/source.ts`**: where data lives. The demo source keeps the fictional
   company in the browser's localStorage; a live source backed by a shared database is
   planned in [docs/accounts-plan.md](docs/accounts-plan.md).
+- **`src/data/queries.ts`**: questions that change nothing, like the sales coverage
+  check; in live mode the server answers them, since it can see what a rep can't.
+- **`src/data/audit.ts`**: the company-wide audit log, built from the change notes each
+  action writes, plus settings changes.
 - **`src/data/rows.ts`**: converts the app's data to database rows and back.
 - **`src/data/live.ts`**: live mode (`npm run dev:live`): email sign-in, and a data
-  source that reads through the database's rules. Account changes run on the server;
-  the rest is read-only until saving arrives.
+  source that reads through the database's rules; every change runs on the server.
 - **`server/run-action.ts`**: the server function (bundled into
   `supabase/functions/run-action` by `scripts/build-functions.ts`). It runs the same
   actions as the demo for the signed-in person and saves the changed rows in one

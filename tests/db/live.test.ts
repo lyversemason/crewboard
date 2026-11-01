@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { visibleIntakes, visibleSessions } from '../../src/engine'
 import type { User } from '../../src/engine'
-import { READ_ONLY_MESSAGE, createLive } from '../../src/data/live'
+import { createLive } from '../../src/data/live'
 import type { AuthState, Live } from '../../src/data/live'
 import { TABLE_ORDER, fromRows } from '../../src/data/rows'
 import type { Rows } from '../../src/data/rows'
@@ -132,11 +132,6 @@ describe('what each person gets in live mode', () => {
     await live.auth.signOut()
   })
 
-  it('saving is refused with a plain explanation (read-only for now)', async () => {
-    const { live } = await signInWithPassword(person('admin'))
-    await expect(live.source.run('updateSettings', person('admin'), [truth.settings])).rejects.toThrow(READ_ONLY_MESSAGE)
-    await live.auth.signOut()
-  })
 })
 
 describe('a deactivated person', () => {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { addDays, hasConfirmedWeek, longDate, weekdayMonthDay, planningWeek, prettyTime, upcomingTimeOff, visibleRoster, visibleSessions, weekRange, dateSpan, dayOfWeek, canConfirmShift, confirmOpensOn, monthDay } from '../engine'
 import type { Coach, Session, User, Weekday } from '../engine'
+import { attempt } from '../ui/problems'
 import { href, setParams, useRoute } from '../router'
 import { addTimeOff, coachConfirmMany, confirmAvailability, removeTimeOff, setAvailability, setWeekChange, useStore } from '../store'
 import { Empty, Hint, LevelTag, Phone, Toast } from '../ui/bits'
@@ -41,7 +42,7 @@ function AvailabilityPrompt({ user, coach }: { user: User; coach: Coach }) {
     <div className="prompt" role="region" aria-label="Weekly availability check">
       <p>Has your availability changed for {weekRange(week)}?</p>
       <div className="actions">
-        <button className="btn primary" onClick={() => confirmAvailability(user, coach.id, week)}>
+        <button className="btn primary" onClick={() => attempt(() => confirmAvailability(user, coach.id, week))}>
           No, it’s the same
         </button>
         <a className="btn" href={href(user.id, 'availability')}>
@@ -88,10 +89,12 @@ function Shifts({ user }: { user: User }) {
       {toConfirm.length > 0 && (
         <button
           className="btn primary block"
-          onClick={async () => {
-            await coachConfirmMany(user, toConfirm.map((s) => s.id))
-            setFlash(`Confirmed ${toConfirm.length} shift${toConfirm.length > 1 ? 's' : ''}.`)
-          }}
+          onClick={() =>
+            attempt(async () => {
+              await coachConfirmMany(user, toConfirm.map((s) => s.id))
+              setFlash(`Confirmed ${toConfirm.length} shift${toConfirm.length > 1 ? 's' : ''}.`)
+            })
+          }
         >
           {toConfirm.length === 1 ? 'Confirm my 1 shift this week' : `Confirm all ${toConfirm.length} shifts this week`}
         </button>
@@ -124,7 +127,7 @@ function Shifts({ user }: { user: User }) {
                 ) : me.confirmedByCoach ? (
                   <span className="flag ok">Confirmed ✓</span>
                 ) : s.rescheduledFromId && canConfirmShift(s.date, state.today) ? (
-                  <button className="btn small save-override" onClick={() => coachConfirmMany(user, [s.id])} title="This session moved. Confirm the new time.">
+                  <button className="btn small save-override" onClick={() => attempt(() => coachConfirmMany(user, [s.id]))} title="This session moved. Confirm the new time.">
                     Moved: confirm
                   </button>
                 ) : s.date < state.today ? (
@@ -134,7 +137,7 @@ function Shifts({ user }: { user: User }) {
                     Confirm from {monthDay(confirmOpensOn(s.date))}
                   </span>
                 ) : (
-                  <button className="btn small" onClick={() => coachConfirmMany(user, [s.id])}>
+                  <button className="btn small" onClick={() => attempt(() => coachConfirmMany(user, [s.id]))}>
                     Confirm
                   </button>
                 )}
@@ -236,7 +239,7 @@ function ShiftPackage({ user, id }: { user: User; id: string }) {
           ) : !canConfirmShift(s.date, state.today) ? (
             <p className="muted small">You can confirm this shift from {weekdayMonthDay(confirmOpensOn(s.date))}, the Sunday before its week.</p>
           ) : (
-            <button className="btn primary block" onClick={() => coachConfirmMany(user, [s.id])}>
+            <button className="btn primary block" onClick={() => attempt(() => coachConfirmMany(user, [s.id]))}>
               Confirm this shift
             </button>
           )}
@@ -276,11 +279,12 @@ function Availability({ user }: { user: User }) {
   const [tab, setTab] = useState<'usual' | 'week' | 'off'>('usual')
   const [toast, setToast] = useState('')
   const week = planningWeek(state.today)
-  const done = async (msg: string) => {
-    // Reviewing and saving counts as this week's check-in.
-    await confirmAvailability(user, coach.id, week)
-    setToast(msg)
-  }
+  const done = (msg: string) =>
+    attempt(async () => {
+      // Reviewing and saving counts as this week's check-in.
+      await confirmAvailability(user, coach.id, week)
+      setToast(msg)
+    })
   return (
     <>
       <header className="phone-head">
@@ -319,10 +323,12 @@ function UsualWeek({ user, coach, onSaved }: { user: User; coach: Coach; onSaved
       <button
         className="btn primary block"
         disabled={!dirty}
-        onClick={async () => {
-          await setAvailability(user, coach.id, draft)
-          onSaved()
-        }}
+        onClick={() =>
+          attempt(async () => {
+            await setAvailability(user, coach.id, draft)
+            onSaved()
+          })
+        }
       >
         Save as my usual week
       </button>
@@ -361,20 +367,24 @@ function OneWeekGrid({ user, coach, monday, weeks, setMonday, onSaved }: { user:
       <button
         className="btn primary block"
         disabled={!dirty}
-        onClick={async () => {
-          await setWeekChange(user, coach.id, monday, draft)
-          onSaved(`Saved for ${weekRange(monday)} only.`)
-        }}
+        onClick={() =>
+          attempt(async () => {
+            await setWeekChange(user, coach.id, monday, draft)
+            onSaved(`Saved for ${weekRange(monday)} only.`)
+          })
+        }
       >
         Save for this week only
       </button>
       {coach.weekChanges[monday] && (
         <button
           className="btn ghost block"
-          onClick={async () => {
-            await setWeekChange(user, coach.id, monday, null)
-            onSaved('Back to your usual week.')
-          }}
+          onClick={() =>
+            attempt(async () => {
+              await setWeekChange(user, coach.id, monday, null)
+              onSaved('Back to your usual week.')
+            })
+          }
         >
           Undo this week’s change
         </button>
@@ -407,10 +417,12 @@ function DaysOff({ user, coach, today, onSaved }: { user: User; coach: Coach; to
               </span>
               <button
                 className="btn small ghost"
-                onClick={async () => {
-                  await removeTimeOff(user, coach.id, t.id)
-                  onSaved('Day off removed.')
-                }}
+                onClick={() =>
+                  attempt(async () => {
+                    await removeTimeOff(user, coach.id, t.id)
+                    onSaved('Day off removed.')
+                  })
+                }
               >
                 Remove
               </button>

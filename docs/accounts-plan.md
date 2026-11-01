@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **Phases 1 to 4 done (v2.7.0, 2026-11-01)**; Phase 5 next.
+Status: **Phases 1 to 5 done (v2.8.0, 2026-11-01)**; Phase 6 next.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -323,7 +323,34 @@ Notes for later phases:
 - Live mode still loads data once at sign-in; it reloads after the person's own account
   changes, not anyone else's.
 
-Next: **Phase 5**: open the remaining actions to the server (they already run through
-`run-action`; remove the `SERVER_ACTIONS` limit and test each), the audit log table and
-screen, the sales coverage check as a server function, error messages on the coach's
-Confirm buttons, and a GitHub Actions job that runs the database tests.
+**Phase 5 done (v2.8.0, 2026-11-01).** Every action now runs on the server in live mode
+(only `acceptInvite` stays demo-only: the database accepts on first sign-in), so the
+read-only banner is gone. The **audit log** (`src/data/audit.ts`): each action's new
+change notes on sessions, coaches, people, centers and submissions become entries, plus
+spelled-out settings changes. The demo keeps it in the browser (starting from the
+fictional managers' own changes); live mode writes it in the same transaction as the
+change (`apply_changes`, migration `20261101200000_audit_log.sql`), to a table only ops
+admins read and nobody edits or deletes (no grant, and a trigger). New **Audit log** tab
+for ops admins. **Queries** (`src/data/queries.ts`): the sales coverage check and its
+suggested slots moved out of the screen; in live mode the server answers it, without
+naming coaches. Screens: a "Saving…" sign, a red message for any save that fails
+(`src/ui/problems.ts`, used by the coach's Confirm buttons and others), Submit locks
+while saving, and coming back to the tab reloads the data. GitHub Actions now runs the
+database tests in a `database` job (the deploy doesn't wait for it). Tests: 236 app tests
+(10 new) and 41 database tests (12 new: every kind of change as the right person,
+refusals, coverage, audit log rules); browser runs passed 6 live checks, 8 demo audit
+checks, 23 Accounts checks and 17 demo checks.
+
+Found and fixed along the way: when the server couldn't be reached at all, the error
+message was a programming error ("context.json is not a function"); it now says
+"Couldn't reach the server. Nothing was saved; try again."
+
+Notes for later:
+- The audit log shows the newest 1000 entries to an admin's screen; older ones stay in
+  the database. Add paging if that's ever not enough.
+- Change notes that already used short dates ("Tue Nov 24") appear that way in the log.
+
+Next: **Phase 6**, the wrap-up: README section and screenshots for the database version
+(sign-in, Accounts, Audit log, live mode), then v3.0.0. A live online copy stays
+optional (decision 3); if wanted, it needs a Supabase account, an email sending
+service, and `SITE_URL` / keys set for the hosted project.

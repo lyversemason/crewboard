@@ -30,6 +30,26 @@ jobs:
         with:
           path: dist
 
+  database:
+    # The database tests (tests/db): a local Supabase in Docker with the
+    # fictional company loaded, then every role signed in and every kind of
+    # change made through the server function. The public demo doesn't use the
+    # database, so the deploy doesn't wait for this job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:start
+      - run: npm run db:reset
+      - run: npm run test:db
+      - name: Server function log (on failure)
+        if: failure()
+        run: docker logs supabase_edge_runtime_soccer-sessions 2>&1 | tail -80
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

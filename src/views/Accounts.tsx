@@ -8,6 +8,7 @@ import type { CoachLevel, Role, User } from '../engine'
 import { go, href } from '../router'
 import { acceptInvite, changeAccess, deactivateUser, inviteUser, mode, reactivateUser, resendInvite, useStore } from '../store'
 import type { InviteInput } from '../store'
+import { attempt } from '../ui/problems'
 import { Hint, Modal, Toast } from '../ui/bits'
 import { LEVEL_LABEL, ROLE_LABEL } from '../ui/format'
 import { useScope } from './scope'
@@ -372,10 +373,12 @@ function InviteEmail({ person: p, inviter }: { person: User; inviter?: string })
       <div className="actions">
         <button
           className="btn primary"
-          onClick={async () => {
-            await acceptInvite(p)
-            go(p.id)
-          }}
+          onClick={() =>
+            attempt(async () => {
+              await acceptInvite(p)
+              go(p.id)
+            })
+          }
         >
           Accept as {p.name.split(' ')[0]}
         </button>

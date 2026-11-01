@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { canAssign, canEditTerms, canSeeMoney, cycleStatus, fullDate, prettyDate, prettyTime, sessionsInCycle, toMinutes, visibleIntakes, scheduleLabel } from '../engine'
 import type { Center, User } from '../engine'
 import { confirmProgramWithFacility, updateTerms } from '../store'
+import { attempt } from '../ui/problems'
 import { Empty, Hint, StatusPill, Toast } from '../ui/bits'
 import { money } from '../ui/format'
 import { openSession, useScope } from './scope'
@@ -69,10 +70,12 @@ export function Pipeline({ user }: { user: User }) {
                 {pendingCount > 0 && canAssign(user, center.territoryId) && (
                   <button
                     className="btn"
-                    onClick={async () => {
-                      const n = await confirmProgramWithFacility(user, firstPending!.id)
-                      setToast(`Confirmed ${n} session${n === 1 ? '' : 's'} with the facility.`)
-                    }}
+                    onClick={() =>
+                      attempt(async () => {
+                        const n = await confirmProgramWithFacility(user, firstPending!.id)
+                        setToast(`Confirmed ${n} session${n === 1 ? '' : 's'} with the facility.`)
+                      })
+                    }
                   >
                     Confirm all {pendingCount} with the facility
                   </button>
@@ -153,10 +156,12 @@ function Terms({
             <button
               className={`btn ${price !== terms.cycleRate ? 'save-ready' : 'save-idle'}`}
               disabled={price === terms.cycleRate}
-              onClick={async () => {
-                await updateTerms(user, center.id, { ...terms, cycleRate: price })
-                onSaved(`Price for ${center.name} updated.`)
-              }}
+              onClick={() =>
+                attempt(async () => {
+                  await updateTerms(user, center.id, { ...terms, cycleRate: price })
+                  onSaved(`Price for ${center.name} updated.`)
+                })
+              }
             >
               Save price
             </button>

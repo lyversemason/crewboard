@@ -3,18 +3,17 @@
 // Sign-in is by email: a link, or the 6-digit code in the same email (for
 // phones where the link opens in a different browser).
 //
-// Changes run on the server (supabase/functions/run-action). So far only the
-// account actions do (docs/accounts-plan.md, phase 4); the rest are refused with
-// a plain explanation until saving arrives in phase 5.
+// Changes and queries run on the server (supabase/functions/run-action), as the
+// signed-in person, with the same actions and rules as the demo.
 
 import { createClient } from '@supabase/supabase-js'
 import type { Session as AuthSession, SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_SETTINGS, LifecycleError, todayLocal } from '../engine'
 import type { User } from '../engine'
-import { SERVER_ACTIONS } from './actions'
+import { DEMO_ONLY_ACTIONS } from './actions'
 import type { State } from './actions'
 import { TABLE_ORDER, fromRows } from './rows'
-import type { ProfileRow, Rows } from './rows'
+import type { AuditRow, ProfileRow, Rows } from './rows'
 import type { DataSource } from './source'
 
 export type AuthState =
@@ -40,7 +39,8 @@ export interface Live {
   client: SupabaseClient
 }
 
-export const READ_ONLY_MESSAGE = 'Live mode can only manage accounts so far. Saving other changes arrives in a later version; until then the rest is read-only.'
+/** How much of the audit log an ops admin's screen loads (newest first). */
+const AUDIT_LOADED = 1000
 
 /** Reads every row of a table the signed-in person may see, past the per-request row limit. */
 async function readAll(client: SupabaseClient, table: string): Promise<unknown[]> {
@@ -63,6 +63,7 @@ const EMPTY: State = {
   sessions: [],
   intakes: [],
   settings: DEFAULT_SETTINGS,
+  audit: [],
 }
 
 export function createLive(url: string, anonKey: string, options: { browser?: boolean } = { browser: true }): Live {
@@ -106,10 +107,41 @@ export function createLive(url: string, anonKey: string, options: { browser?: bo
       setAuth({ status: 'no-access', email, reason: profile ? (profile.status as 'deactivated' | 'invited') : 'unknown' })
       return
     }
-    const rows = Object.fromEntries(await Promise.all(TABLE_ORDER.map(async (t) => [t, await readAll(client, t)]))) as Rows
-    const next = fromRows(rows, todayLocal())
+    const [rows, audit] = await Promise.all([
+      Promise.all(TABLE_ORDER.map(async (t) => [t, await readAll(client, t)])).then((pairs) => Object.fromEntries(pairs) as Rows),
+      // Only ops admins may read the log; don't ask for it otherwise.
+      profile.role === 'ops_admin' ? readAudit() : Promise.resolve([]),
+    ])
+    const next = fromRows(rows, todayLocal(), audit)
     setState(next)
     setAuth({ status: 'ready', me: next.users.find((u) => u.id === profile.id)! })
+  }
+
+  async function readAudit(): Promise<AuditRow[]> {
+    const { data, error } = await client.from('audit_log').select('*').order('id', { ascending: false }).limit(AUDIT_LOADED)
+    if (error) throw new Error(`Couldn’t load the audit log: ${error.message}`)
+    return data as AuditRow[]
+  }
+
+  /** Calls the server function; a refusal comes back as a LifecycleError with the reason. */
+  async function callServer<T>(body: object): Promise<T> {
+    const { data, error } = await client.functions.invoke('run-action', { body })
+    if (error) {
+      // A refusal carries the server's reply; a network failure carries no reply at all.
+      const context = (error as { context?: unknown }).context
+      const reply = context instanceof Response ? ((await context.json().catch(() => null)) as { error?: string } | null) : null
+      throw new LifecycleError(reply?.error ?? 'Couldn’t reach the server. Nothing was saved; try again.')
+    }
+    return data as T
+  }
+
+  const reload = async () => load((await client.auth.getSession()).data.session)
+
+  // Coming back to the tab picks up other people's changes.
+  if (browser) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && auth.status === 'ready') reload().catch((e: unknown) => console.error(e))
+    })
   }
 
   let lastUser: string | undefined
@@ -142,17 +174,15 @@ export function createLive(url: string, anonKey: string, options: { browser?: bo
     },
     async run(name, _user, args) {
       // The server works out who is asking from the sign-in; `_user` is only the screen's copy.
-      if (!SERVER_ACTIONS.includes(name)) throw new LifecycleError(READ_ONLY_MESSAGE)
-      const { data, error } = await client.functions.invoke('run-action', { body: { name, args } })
-      if (error) {
-        const body = (await (error as { context?: Response }).context?.json().catch(() => null)) as { error?: string } | null
-        throw new LifecycleError(body?.error ?? 'Couldn’t reach the server. Nothing was saved.')
-      }
-      const { data: sessionData } = await client.auth.getSession()
-      await load(sessionData.session)
-      const { result, warning } = data as { result: never; warning?: string }
+      if (DEMO_ONLY_ACTIONS.includes(name)) throw new LifecycleError('In live mode an invitation is accepted by signing in.')
+      const { result, warning } = await callServer<{ result: never; warning?: string }>({ name, args })
+      await reload()
       // Saved, but something after it (an email) didn't go: say so.
       if (warning) throw new LifecycleError(warning)
+      return result
+    },
+    async query(name, _user, args) {
+      const { result } = await callServer<{ result: never }>({ query: name, args })
       return result
     },
   }

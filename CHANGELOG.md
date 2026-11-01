@@ -3,6 +3,27 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.8.0 (2026-11-01 ET): accounts plan, phase 5 (audit log, saving everything)
+
+Visible in the public demo: an **Audit log** tab for operations admins.
+
+- The audit log: every logged change in the company, newest first, with who made it
+  and a link to what it was about. Filter by person or kind, or search. The demo starts
+  with the fictional managers' own changes. In the database version the log is written
+  together with each change and can only be added to.
+- Live mode (local database): every change now saves through the server, not just
+  account changes, and the read-only note is gone. The sales form's coverage check is
+  answered by the server, which can see every session without showing them to the rep.
+- A "Saving…" sign while a change is on its way, and a plain red message whenever a
+  save fails (for example a coach's Confirm while offline), instead of nothing.
+- Submitting a new center locks the button while it saves, so a double click can't
+  submit twice.
+- GitHub now runs the database tests too, in their own job.
+- A demo saved in your browser by an earlier version starts fresh (it has no audit log).
+- 236 app tests (10 new) and 41 database tests (12 new).
+
+Restore this if: the Audit log tab gets in the way of a review; v2.7.0 doesn't have it.
+
 ## v2.7.0 (2026-11-01 ET): accounts plan, phase 4 (Accounts screen and invitations)
 
 Visible in the public demo: a new **Accounts** tab for operations admins and territory

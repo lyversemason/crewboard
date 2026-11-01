@@ -1,13 +1,16 @@
 // Database rows: the fictional company survives the trip into tables and back.
 
 import { describe, expect, it } from 'vitest'
-import { diffRows, fromRows, toRows } from '../src/data/rows'
+import { auditToRow, diffRows, fromRows, toRows } from '../src/data/rows'
 import { demoSource } from '../src/data/source'
 import type { State } from '../src/data/actions'
 
 const byId = <T extends { id: string }>(xs: T[]) => [...xs].sort((a, b) => a.id.localeCompare(b.id))
+// The database numbers audit entries itself (1, 2, …); the demo calls them a1, a2, ….
+const auditRows = (s: State) => s.audit.map((e) => ({ id: Number(e.id.slice(1)), ...auditToRow(e) }))
 const sorted = (s: State) => ({
   ...s,
+  audit: s.audit.map(({ id: _id, ...rest }) => rest),
   territories: byId(s.territories),
   coaches: byId(s.coaches),
   users: byId(s.users),
@@ -23,14 +26,14 @@ describe('rows', () => {
     // The database hands rows back in its own order; the app doesn't depend on order.
     const rows = toRows(state)
     const shuffled = Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, [...v].reverse()])) as typeof rows
-    expect(sorted(fromRows(shuffled, state.today))).toEqual(sorted(state))
+    expect(sorted(fromRows(shuffled, state.today, [...auditRows(state)].reverse()))).toEqual(sorted(state))
   })
 
   it('read the database’s time and timestamp formats', () => {
     const rows = toRows(state)
     rows.sessions = rows.sessions.map((s) => ({ ...s, start_time: `${s.start_time}:00`, end_time: `${s.end_time}:00` }))
     rows.intakes = rows.intakes.map((i) => ({ ...i, submitted_at: i.submitted_at.replace('Z', '+00:00') }))
-    expect(sorted(fromRows(rows, state.today))).toEqual(sorted(state))
+    expect(sorted(fromRows(rows, state.today, auditRows(state)))).toEqual(sorted(state))
   })
 
   it('keep pay and prices out of the tables everyone else can read', () => {

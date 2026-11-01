@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from 'react'
 import type { User } from './engine'
 import type { ActionArgs, ActionName, ActionResult, State } from './data/actions'
+import type { QueryArgs, QueryName, QueryResult } from './data/queries'
 import { createLive } from './data/live'
 import type { AuthState } from './data/live'
 import { demoSource } from './data/source'
@@ -13,6 +14,8 @@ import { demoSource } from './data/source'
 export { worldOf } from './data/actions'
 export type { BulkResult, CoachEdit, DeactivateResult, IntakeInput, InviteInput, SaveCrewResult, State } from './data/actions'
 export type { AuthState } from './data/live'
+export type { AuditEntry } from './data/audit'
+export type { CoverageAnswer, CoverageInput } from './data/queries'
 
 // Live mode only when the build is given a database (npm run dev:live). The
 // public demo has none, so it never loads the database code.
@@ -43,10 +46,42 @@ export function resetDemo() {
   source.reset?.()
 }
 
+// How many changes are on their way to the server, for the "Saving…" sign.
+let saving = 0
+const savingListeners = new Set<() => void>()
+const setSaving = (delta: number) => {
+  saving += delta
+  savingListeners.forEach((l) => l())
+}
+
+/** True while a change is being saved (only ever noticeable in live mode). */
+export function useSaving(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      savingListeners.add(l)
+      return () => savingListeners.delete(l)
+    },
+    () => saving > 0,
+  )
+}
+
 const action =
   <N extends ActionName>(name: N) =>
-  (user: User, ...args: ActionArgs<N>): Promise<ActionResult<N>> =>
-    source.run(name, user, args)
+  async (user: User, ...args: ActionArgs<N>): Promise<ActionResult<N>> => {
+    setSaving(1)
+    try {
+      return await source.run(name, user, args)
+    } finally {
+      setSaving(-1)
+    }
+  }
+
+const query =
+  <N extends QueryName>(name: N) =>
+  (user: User, ...args: QueryArgs<N>): Promise<QueryResult<N>> =>
+    source.query(name, user, args)
+
+export const salesCoverage = query('salesCoverage')
 
 export const saveCrew = action('saveCrew')
 export const staffOpenSessions = action('staffOpenSessions')

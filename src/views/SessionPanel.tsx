@@ -26,6 +26,7 @@ import {
 import type { BulkScope, CancelReason, Center, Coach, Session, User, Violation, ViolationCode } from '../engine'
 import { setParams, useRoute } from '../router'
 import { cancel, confirmProgramWithFacility, confirmWithFacility, reschedule, saveCrew, staffOpenSessions, useStore, worldOf } from '../store'
+import { attempt } from '../ui/problems'
 import { Hint, IssueList, LevelTag, Modal, Phone, StatusPill, Toast, UnconfirmedAlert } from '../ui/bits'
 import { mapHref, money, movedTo } from '../ui/format'
 
@@ -600,10 +601,11 @@ function BulkStaff({ user, s, toast }: { user: User; s: Session; toast: (msg: st
 
   if (!all.fillable.length && !all.left.length) return null
 
-  const apply = async (scope: BulkScope) => {
-    const r = await staffOpenSessions(user, s.id, scope)
-    toast(`Added ${names} to ${r.filled.length} more session${r.filled.length === 1 ? '' : 's'}.`)
-  }
+  const apply = (scope: BulkScope) =>
+    attempt(async () => {
+      const r = await staffOpenSessions(user, s.id, scope)
+      toast(`Added ${names} to ${r.filled.length} more session${r.filled.length === 1 ? '' : 's'}.`)
+    })
 
   return (
     <div className="bulk">

@@ -3,7 +3,8 @@
 
 import { todayLocal } from '../src/engine'
 import { buildDemo } from '../src/data/seed'
-import { TABLE_ORDER, toRows } from '../src/data/rows'
+import { auditFromHistory } from '../src/data/audit'
+import { TABLE_ORDER, auditToRow, toRows } from '../src/data/rows'
 import { LOCAL_PASSWORD, localDb, serverClient } from './local-db'
 
 const db = localDb()
@@ -13,7 +14,9 @@ const { count } = await server.from('territories').select('*', { count: 'exact',
 if (count) throw new Error('The database already has data. Run `npm run db:reset` to start over.')
 
 const today = todayLocal()
-const rows = toRows({ ...buildDemo(today), today })
+const company = { ...buildDemo(today), today, audit: [] }
+const rows = toRows(company)
+const audit = auditFromHistory(company).map(auditToRow)
 
 // Sign-in accounts first, so each profile can point at its account.
 const accounts = new Map<string, string>()
@@ -32,8 +35,13 @@ for (const table of TABLE_ORDER) {
   }
 }
 
+{
+  const { error } = await server.from('audit_log').insert(audit)
+  if (error) throw new Error(`audit_log: ${error.message}`)
+}
+
 console.log(
   `Seeded the fictional company as of ${today}: ` +
     TABLE_ORDER.map((t) => `${rows[t].length} ${t.replaceAll('_', ' ')}`).join(', ') +
-    `. ${accounts.size} sign-in accounts, password "${LOCAL_PASSWORD}".`,
+    `, ${audit.length} audit entries. ${accounts.size} sign-in accounts, password "${LOCAL_PASSWORD}".`,
 )

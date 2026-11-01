@@ -607,8 +607,9 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
   .phone-app { border: 0; }
 }
 
-/* Live mode: sign-in and the read-only note */
+/* Live mode: sign-in, saving sign, problems */
 .signin-card { max-width: 26rem; margin: 0 auto; }
 .signin-card .field input { font-size: 1.05rem; padding: 0.5em 0.6em; }
 .loading { text-align: center; color: var(--muted); padding: 3em 1em; }
-.live-note { margin: 0.5em 1.25em 0; }
+.saving { font-size: 0.8rem; font-weight: 600; color: var(--brand-ink); opacity: 0.85; }
+.toast.problem { background: var(--bad); color: #fff; animation: none; cursor: pointer; max-width: min(28rem, calc(100vw - 2.5em)); }

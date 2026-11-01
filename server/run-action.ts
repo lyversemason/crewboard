@@ -1,19 +1,22 @@
-// Supabase Edge Function: runs one action for the signed-in person and saves
-// what changed. Bundled into supabase/functions/run-action by
-// scripts/build-functions.ts, so it uses the very same actions and rules as
-// the demo (src/data/actions.ts, src/engine).
+// Supabase Edge Function: runs one action (or answers one query) for the
+// signed-in person, and saves what changed. Bundled into
+// supabase/functions/run-action by scripts/build-functions.ts, so it uses the
+// very same actions, queries and rules as the demo (src/data, src/engine).
 //
 // Who is asking comes from their sign-in token, never from the request body.
-// Saving goes through the database's apply_changes, in one transaction.
+// Saving goes through the database's apply_changes: the changed rows and their
+// audit entries in one transaction.
 
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient, User as Account } from '@supabase/supabase-js'
 import { LifecycleError } from '../src/engine'
 import type { User } from '../src/engine'
-import { ACTIONS, SERVER_ACTIONS } from '../src/data/actions'
+import { ACTIONS, DEMO_ONLY_ACTIONS } from '../src/data/actions'
 import type { ActionName, State } from '../src/data/actions'
-import { READ_ONLY_MESSAGE } from '../src/data/live'
-import { TABLE_ORDER, diffRows, fromRows, toRows } from '../src/data/rows'
+import { auditEntries } from '../src/data/audit'
+import { QUERIES } from '../src/data/queries'
+import type { QueryName } from '../src/data/queries'
+import { TABLE_ORDER, auditToRow, diffRows, fromRows, toRows } from '../src/data/rows'
 import type { Rows } from '../src/data/rows'
 
 declare const Deno: {
@@ -88,8 +91,12 @@ Deno.serve(async (req) => {
     const account: Account | null = auth.user
     if (!account) return reply(401, { error: 'Your sign-in has expired. Sign in again.' })
 
-    const { name, args } = (await req.json()) as { name: ActionName; args: unknown[] }
-    if (!SERVER_ACTIONS.includes(name)) return reply(400, { error: READ_ONLY_MESSAGE })
+    const body = (await req.json()) as { name?: ActionName; query?: QueryName; args?: unknown[] }
+    const args = Array.isArray(body.args) ? body.args : []
+    const name = body.name
+    if (body.query ? !(body.query in QUERIES) : !name || !(name in ACTIONS) || DEMO_ONLY_ACTIONS.includes(name)) {
+      return reply(400, { error: 'That isn’t something the server does.' })
+    }
 
     const rows = Object.fromEntries(await Promise.all(TABLE_ORDER.map(async (t) => [t, await readAll(server, t)]))) as Rows
     const authIds = new Map((rows.profiles as unknown as { id: string; auth_user_id: string | null }[]).map((p) => [p.id, p.auth_user_id ?? undefined]))
@@ -97,9 +104,17 @@ Deno.serve(async (req) => {
     const me = before.users.find((u) => authIds.get(u.id) === account.id)
     if (!me || me.status !== 'active') return reply(403, { error: 'Your access is off.' })
 
+    const at = new Date().toISOString()
+    if (body.query) {
+      const query = QUERIES[body.query] as (...a: unknown[]) => unknown
+      return reply(200, { result: query({ state: before, user: me, at }, ...args) })
+    }
+    if (!name) return reply(400, { error: 'That isn’t something the server does.' })
+
     const action = ACTIONS[name] as (...a: unknown[]) => { state: State; result: unknown }
-    const outcome = action({ state: before, user: me, at: new Date().toISOString() }, ...(Array.isArray(args) ? args : []))
+    const outcome = action({ state: before, user: me, at }, ...args)
     const changes = diffRows(toRows(before), toRows(outcome.state))
+    const audit = auditEntries(before, outcome.state, me, name, at).map(auditToRow)
     const person = (id: string) => outcome.state.users.find((u) => u.id === id)!
 
     // Sign-in accounts change alongside the records.
@@ -109,7 +124,7 @@ Deno.serve(async (req) => {
       const authId = await markInvited(server, target, me)
       changes.profiles = changes.profiles!.map((p) => (p.id === target.id ? { ...p, auth_user_id: authId } : p)) as typeof changes.profiles
     }
-    const { error } = await server.rpc('apply_changes', { changes })
+    const { error } = await server.rpc('apply_changes', { changes: { ...changes, audit } })
     if (error) throw new Error(`Couldn’t save: ${error.message}`)
 
     if (name === 'deactivateUser') await setBanned(server, authIds.get(targetId), true)
