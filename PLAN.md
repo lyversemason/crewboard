@@ -129,7 +129,8 @@ week, directory, weekly availability), ops admin dashboard + settings.
 **Later:** real push/SMS reminders, hours × pay
 rate dashboard (week / month / 3-week pay cycle), calendar subscription (iCal feed),
 bulk copy of a cadence across N weeks, equipment bag inventory, address verification
-API, real authentication and a shared database.
+API, real authentication and a shared database (planned in
+[docs/accounts-plan.md](docs/accounts-plan.md)).
 
 ## Architecture
 

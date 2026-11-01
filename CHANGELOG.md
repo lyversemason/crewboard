@@ -3,6 +3,14 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.3.1 (2026-11-01 ET): plan for real sign-in and staff accounts
+
+- New `docs/accounts-plan.md`: how a real deployment would add sign-in (invite only,
+  email links), adding staff by invitation, deactivating instead of deleting, access
+  rules enforced by the database, and an audit log, while the public demo keeps its
+  "pick a demo user" screen. Plan only; no app changes.
+- PLAN.md links to it from the "Later" list.
+
 ## v2.3.0 (2026-10-11 03:00 ET): confirmations open the Sunday before
 
 - Coaches can only confirm a shift from the Sunday before its week (the work week starts
