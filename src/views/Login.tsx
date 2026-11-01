@@ -6,7 +6,7 @@ import { LevelTag } from '../ui/bits'
 
 export function Login() {
   const { users, coaches, territories, sessions, today } = useStore()
-  const coachUsers = users.filter((u) => u.role === 'coach')
+  const coachUsers = users.filter((u) => u.role === 'coach' && u.status === 'active')
   // Default to the coach with the busiest coming week, so the demo has something to show.
   const week = planningWeek(today)
   const shifts = (coachId?: string) => sessions.filter((s) => s.date >= week && s.date < addDays(week, 7) && s.assignments.some((a) => a.coachId === coachId)).length

@@ -3,13 +3,15 @@
 // Sign-in is by email: a link, or the 6-digit code in the same email (for
 // phones where the link opens in a different browser).
 //
-// Saving isn't wired up yet (docs/accounts-plan.md, phase 5): until then live
-// mode is read-only and every action is refused with a plain explanation.
+// Changes run on the server (supabase/functions/run-action). So far only the
+// account actions do (docs/accounts-plan.md, phase 4); the rest are refused with
+// a plain explanation until saving arrives in phase 5.
 
 import { createClient } from '@supabase/supabase-js'
 import type { Session as AuthSession, SupabaseClient } from '@supabase/supabase-js'
 import { DEFAULT_SETTINGS, LifecycleError, todayLocal } from '../engine'
 import type { User } from '../engine'
+import { SERVER_ACTIONS } from './actions'
 import type { State } from './actions'
 import { TABLE_ORDER, fromRows } from './rows'
 import type { ProfileRow, Rows } from './rows'
@@ -38,7 +40,7 @@ export interface Live {
   client: SupabaseClient
 }
 
-export const READ_ONLY_MESSAGE = 'Live mode can’t save changes yet. Saving arrives in a later version; until then this is a read-only view.'
+export const READ_ONLY_MESSAGE = 'Live mode can only manage accounts so far. Saving other changes arrives in a later version; until then the rest is read-only.'
 
 /** Reads every row of a table the signed-in person may see, past the per-request row limit. */
 async function readAll(client: SupabaseClient, table: string): Promise<unknown[]> {
@@ -138,8 +140,20 @@ export function createLive(url: string, anonKey: string, options: { browser?: bo
       dataListeners.add(listener)
       return () => dataListeners.delete(listener)
     },
-    async run() {
-      throw new LifecycleError(READ_ONLY_MESSAGE)
+    async run(name, _user, args) {
+      // The server works out who is asking from the sign-in; `_user` is only the screen's copy.
+      if (!SERVER_ACTIONS.includes(name)) throw new LifecycleError(READ_ONLY_MESSAGE)
+      const { data, error } = await client.functions.invoke('run-action', { body: { name, args } })
+      if (error) {
+        const body = (await (error as { context?: Response }).context?.json().catch(() => null)) as { error?: string } | null
+        throw new LifecycleError(body?.error ?? 'Couldn’t reach the server. Nothing was saved.')
+      }
+      const { data: sessionData } = await client.auth.getSession()
+      await load(sessionData.session)
+      const { result, warning } = data as { result: never; warning?: string }
+      // Saved, but something after it (an email) didn't go: say so.
+      if (warning) throw new LifecycleError(warning)
+      return result
     },
   }
 
@@ -159,6 +173,7 @@ export function createLive(url: string, anonKey: string, options: { browser?: bo
         })
         // Same answer whether or not the address has an account, so the form
         // can't be used to find out who works here.
+        if (error && /only request this after/i.test(error.message)) throw new Error('A code was sent moments ago. Wait a minute, then ask again.')
         if (error && !/signups not allowed|user not found/i.test(error.message)) throw new Error(error.message)
       },
       async verifyCode(email, code) {

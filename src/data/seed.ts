@@ -167,13 +167,15 @@ export function buildDemo(today: string): DemoData {
 
   const centers: Center[] = []
   const coaches: Coach[] = []
+  // Everyone in the demo has already accepted their invitation.
+  const active = () => ({ status: 'active' as const, activatedAt: `${addDays(thisMonday, -60)}T14:00:00.000Z`, history: [] })
   const users: User[] = [
-    { id: 'admin', name: 'Dana Whitfield', role: 'ops_admin', territoryIds: TERRITORIES.map((t) => t.id) },
-    { id: 'tm-lou', name: 'Priya Raman', role: 'territory_manager', territoryIds: ['lou'] },
-    { id: 'tm-knx', name: 'Caleb Odom', role: 'territory_manager', territoryIds: ['knx'] },
-    { id: 'tm-oak', name: 'Marisol Vega', role: 'territory_manager', territoryIds: ['oak'] },
-    { id: 'rep-east', name: 'Jamie Ellison', role: 'sales_rep', territoryIds: ['lou', 'knx'] },
-    { id: 'rep-west', name: 'Theo Park', role: 'sales_rep', territoryIds: ['oak'] },
+    { id: 'admin', name: 'Dana Whitfield', email: 'admin@staff.bramblewood.example', role: 'ops_admin', territoryIds: TERRITORIES.map((t) => t.id), ...active() },
+    { id: 'tm-lou', name: 'Priya Raman', email: 'tm-lou@staff.bramblewood.example', role: 'territory_manager', territoryIds: ['lou'], ...active() },
+    { id: 'tm-knx', name: 'Caleb Odom', email: 'tm-knx@staff.bramblewood.example', role: 'territory_manager', territoryIds: ['knx'], ...active() },
+    { id: 'tm-oak', name: 'Marisol Vega', email: 'tm-oak@staff.bramblewood.example', role: 'territory_manager', territoryIds: ['oak'], ...active() },
+    { id: 'rep-east', name: 'Jamie Ellison', email: 'rep-east@staff.bramblewood.example', role: 'sales_rep', territoryIds: ['lou', 'knx'], ...active() },
+    { id: 'rep-west', name: 'Theo Park', email: 'rep-west@staff.bramblewood.example', role: 'sales_rep', territoryIds: ['oak'], ...active() },
   ]
 
   let nameIdx = 0
@@ -222,7 +224,7 @@ export function buildDemo(today: string): DemoData {
         availabilityConfirmedWeek: r() < 0.7 ? planningWeek(today) : undefined,
         history: [],
       })
-      users.push({ id: `u-${id}`, name: `${first} ${last}`, role: 'coach', territoryIds: [t.id], coachId: id })
+      users.push({ id: `u-${id}`, name: `${first} ${last}`, email: coaches.at(-1)!.email, role: 'coach', territoryIds: [t.id], coachId: id, ...active() })
     })
   })
 

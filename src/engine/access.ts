@@ -1,7 +1,7 @@
 // Role-based access. Every screen reads data through these functions, so a
 // territory manager in Knoxville never receives Louisville's records at all.
 
-import type { Coach, Intake, Session, User } from './types'
+import type { Coach, Intake, Role, Session, User } from './types'
 
 export function canSeeTerritory(user: User, territoryId: string): boolean {
   if (user.role === 'ops_admin') return true
@@ -92,4 +92,37 @@ export function visibleRoster(user: User, coaches: Coach[]): PublicCoach[] {
   }
   const inScope = coaches.filter((c) => canSeeTerritory(user, c.territoryId))
   return canSeeMoney(user) ? inScope : inScope.map(({ payRate: _pay, ...rest }) => rest)
+}
+
+// ---------------------------------------------------------------- accounts
+
+/**
+ * Who may invite whom: ops admins anyone, anywhere; territory managers only
+ * coaches, and only into their own territory.
+ */
+export function canInvite(user: User, role: Role, territoryIds: string[]): boolean {
+  if (user.role === 'ops_admin') return true
+  return user.role === 'territory_manager' && role === 'coach' && territoryIds.length === 1 && user.territoryIds.includes(territoryIds[0])
+}
+
+/**
+ * Resend or cancel an invite, turn access off or back on: ops admins for
+ * anyone, territory managers for coaches in their territory. Never yourself.
+ */
+export function canManageAccount(user: User, target: User): boolean {
+  if (user.id === target.id) return false
+  if (user.role === 'ops_admin') return true
+  return user.role === 'territory_manager' && target.role === 'coach' && target.territoryIds.every((t) => user.territoryIds.includes(t))
+}
+
+/** Changing someone's role or territories: ops admins only. */
+export function canChangeAccess(user: User): boolean {
+  return user.role === 'ops_admin'
+}
+
+/** The Accounts screen: ops admins see everyone, territory managers the people in their territories. */
+export function visibleAccounts(user: User, users: User[]): User[] {
+  if (user.role === 'ops_admin') return users
+  if (user.role !== 'territory_manager') return []
+  return users.filter((u) => u.territoryIds.some((t) => user.territoryIds.includes(t)))
 }

@@ -7,7 +7,7 @@ import { visibleIntakes, visibleSessions } from '../../src/engine'
 import type { User } from '../../src/engine'
 import { READ_ONLY_MESSAGE, createLive } from '../../src/data/live'
 import type { AuthState, Live } from '../../src/data/live'
-import { TABLE_ORDER, demoEmail, fromRows } from '../../src/data/rows'
+import { TABLE_ORDER, fromRows } from '../../src/data/rows'
 import type { Rows } from '../../src/data/rows'
 import type { State } from '../../src/data/actions'
 import { LOCAL_PASSWORD, localDb, readAll, serverClient } from '../../scripts/local-db'
@@ -24,7 +24,7 @@ beforeAll(async () => {
 })
 
 const person = (id: string): User => truth.users.find((u) => u.id === id)!
-const email = (u: User) => demoEmail(u, truth.coaches)
+const email = (u: User) => u.email
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id).sort()
 
 /** Waits until sign-in has settled (loaded or refused). */

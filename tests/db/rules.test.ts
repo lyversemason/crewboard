@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { canAssign, canSeeMoney, intakeSessions, visibleIntakes, visibleRoster, visibleSessions } from '../../src/engine'
 import type { User } from '../../src/engine'
-import { TABLE_ORDER, demoEmail, fromRows } from '../../src/data/rows'
+import { TABLE_ORDER, fromRows } from '../../src/data/rows'
 import type { ProfileRow, Rows } from '../../src/data/rows'
 import type { State } from '../../src/data/actions'
 import { LOCAL_PASSWORD, browserClient, localDb, readAll, serverClient } from '../../scripts/local-db'
@@ -26,7 +26,7 @@ beforeAll(async () => {
 
 async function signIn(user: User): Promise<SupabaseClient> {
   const client = browserClient(db)
-  const { error } = await client.auth.signInWithPassword({ email: demoEmail(user, truth.coaches), password: LOCAL_PASSWORD })
+  const { error } = await client.auth.signInWithPassword({ email: user.email, password: LOCAL_PASSWORD })
   if (error) throw new Error(`${user.id}: ${error.message}`)
   return client
 }
@@ -74,7 +74,8 @@ describe('each person reads exactly what access.ts allows', () => {
   })
 
   it('every coach', async () => {
-    for (const user of truth.users.filter((u) => u.role === 'coach')) await check(user)
+    // People from the seed have a local password; anyone invited by another test signs in by code only.
+    for (const user of truth.users.filter((u) => u.role === 'coach' && u.status === 'active' && !u.invitedBy)) await check(user)
   })
 
   async function check(user: User) {

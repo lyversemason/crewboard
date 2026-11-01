@@ -18,25 +18,32 @@ function parse(): Route {
 
 let current = parse()
 let currentHash = window.location.hash
+
+// One listener tells every screen about a new address in the same moment. If
+// each screen listened on its own, React could redraw an inner screen with the
+// new address while the outer one still had the old person.
+const listeners = new Set<() => void>()
 window.addEventListener('hashchange', () => {
   current = parse()
   currentHash = window.location.hash
+  listeners.forEach((l) => l())
 })
 
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+function snapshot(): Route {
+  if (window.location.hash !== currentHash) {
+    current = parse()
+    currentHash = window.location.hash
+  }
+  return current
+}
+
 export function useRoute(): Route {
-  return useSyncExternalStore(
-    (l) => {
-      window.addEventListener('hashchange', l)
-      return () => window.removeEventListener('hashchange', l)
-    },
-    () => {
-      if (window.location.hash !== currentHash) {
-        current = parse()
-        currentHash = window.location.hash
-      }
-      return current
-    },
-  )
+  return useSyncExternalStore(subscribe, snapshot)
 }
 
 export function href(userId?: string, view?: string, params: Record<string, string | undefined> = {}): string {

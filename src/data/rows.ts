@@ -43,7 +43,13 @@ export interface ProfileRow {
   role: User['role']
   territory_ids: string[]
   coach_id: string | null
-  status: 'invited' | 'active' | 'deactivated'
+  status: User['status']
+  invited_by: string | null
+  invited_at: string | null
+  activated_at: string | null
+  deactivated_at: string | null
+  deactivated_by: string | null
+  history: User['history']
 }
 
 export interface CenterRow {
@@ -138,15 +144,6 @@ export const TABLE_ORDER: (keyof Rows)[] = [
   'settings',
 ]
 
-/**
- * The demo has no sign-in emails for office staff, so they get addresses on a
- * reserved test domain. Coaches sign in with the email on their record.
- */
-export function demoEmail(user: User, coaches: Coach[]): string {
-  if (user.coachId) return coaches.find((c) => c.id === user.coachId)!.email
-  return `${user.id}@staff.bramblewood.example`
-}
-
 const orNull = <T>(v: T | undefined): T | null => (v === undefined ? null : v)
 const orUndefined = <T>(v: T | null): T | undefined => (v === null ? undefined : v)
 
@@ -170,11 +167,17 @@ export function toRows(state: State): Rows {
     profiles: state.users.map((u) => ({
       id: u.id,
       name: u.name,
-      email: demoEmail(u, state.coaches),
+      email: u.email,
       role: u.role,
       territory_ids: u.territoryIds,
       coach_id: orNull(u.coachId),
-      status: 'active',
+      status: u.status,
+      invited_by: orNull(u.invitedBy),
+      invited_at: orNull(u.invitedAt),
+      activated_at: orNull(u.activatedAt),
+      deactivated_at: orNull(u.deactivatedAt),
+      deactivated_by: orNull(u.deactivatedBy),
+      history: u.history,
     })),
     centers: state.centers.map((c) => ({
       id: c.id,
@@ -241,6 +244,7 @@ export function toRows(state: State): Rows {
 /** The database answers "09:00:00" and "2026-11-02T14:00:00+00:00"; the app uses "09:00" and ISO with Z. */
 const hhmm = (t: string) => t.slice(0, 5)
 const iso = (t: string) => new Date(t).toISOString()
+const when = (t: string | null) => (t === null ? undefined : iso(t))
 
 /**
  * Rebuilds a State from whatever rows the reader was allowed to see. Missing
@@ -278,9 +282,23 @@ export function fromRows(rows: Rows, today: string): State {
         history: pay.get(c.id)?.history ?? [],
       }),
     ),
-    users: rows.profiles
-      .filter((p) => p.status === 'active')
-      .map((p): User => ({ id: p.id, name: p.name, role: p.role, territoryIds: p.territory_ids, coachId: orUndefined(p.coach_id) })),
+    users: rows.profiles.map(
+      (p): User => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        role: p.role,
+        territoryIds: p.territory_ids,
+        coachId: orUndefined(p.coach_id),
+        status: p.status,
+        invitedBy: orUndefined(p.invited_by),
+        invitedAt: when(p.invited_at),
+        activatedAt: when(p.activated_at),
+        deactivatedAt: when(p.deactivated_at),
+        deactivatedBy: orUndefined(p.deactivated_by),
+        history: p.history,
+      }),
+    ),
     centers: rows.centers.map((c): Center => {
       const t = terms.get(c.id)
       return {
@@ -335,4 +353,55 @@ export function fromRows(rows: Rows, today: string): State {
     ),
     settings,
   }
+}
+
+/** Rows to write after an action, for the database's apply_changes. */
+export type Changes = Partial<Rows> & {
+  /** Sessions whose coaching staff is replaced as a whole (rows in session_assignments). */
+  replace_assignments?: string[]
+}
+
+const KEYS: Record<keyof Rows, (r: never) => string> = {
+  territories: (r: TerritoryRow) => r.id,
+  coaches: (r: CoachRow) => r.id,
+  coach_private: (r: CoachPrivateRow) => r.coach_id,
+  profiles: (r: ProfileRow) => r.id,
+  centers: (r: CenterRow) => r.id,
+  center_terms: (r: CenterTermsRow) => r.center_id,
+  intakes: (r: IntakeRow) => r.id,
+  sessions: (r: SessionRow) => r.id,
+  session_assignments: (r: AssignmentRow) => `${r.session_id}/${r.coach_id}`,
+  settings: () => 'settings',
+}
+
+/**
+ * What an action changed: new and changed rows per table. Nothing may
+ * disappear (records are never deleted); the one exception is a session's
+ * coaching staff, which is sent whole for every session whose staff changed.
+ */
+export function diffRows(before: Rows, after: Rows): Changes {
+  const changes: Changes = {}
+  for (const table of TABLE_ORDER) {
+    if (table === 'session_assignments') continue
+    const key = KEYS[table] as (r: unknown) => string
+    const old = new Map((before[table] as unknown[]).map((r) => [key(r), JSON.stringify(r)]))
+    const next = new Set((after[table] as unknown[]).map(key))
+    for (const k of old.keys()) if (!next.has(k)) throw new Error(`Records are never deleted (${table} ${k}).`)
+    const changed = (after[table] as unknown[]).filter((r) => old.get(key(r)) !== JSON.stringify(r))
+    if (changed.length) (changes as Record<string, unknown[]>)[table] = changed
+  }
+  const crew = (rows: AssignmentRow[]) => {
+    const by = new Map<string, AssignmentRow[]>()
+    for (const a of rows) by.set(a.session_id, [...(by.get(a.session_id) ?? []), a])
+    return by
+  }
+  const was = crew(before.session_assignments)
+  const now = crew(after.session_assignments)
+  const touched = [...new Set([...was.keys(), ...now.keys()])].filter((id) => JSON.stringify(was.get(id) ?? []) !== JSON.stringify(now.get(id) ?? []))
+  if (touched.length) {
+    changes.replace_assignments = touched
+    const rows = touched.flatMap((id) => now.get(id) ?? [])
+    if (rows.length) changes.session_assignments = rows
+  }
+  return changes
 }

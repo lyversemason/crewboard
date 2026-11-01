@@ -3,6 +3,33 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.7.0 (2026-11-01 ET): accounts plan, phase 4 (Accounts screen and invitations)
+
+Visible in the public demo: a new **Accounts** tab for operations admins and territory
+managers.
+
+- Invite people by email: ops admins invite anyone anywhere, territory managers invite
+  coaches into their own territory. In the demo the invitation email is shown on screen
+  with a button to accept it. A new coach can't be scheduled until they accept.
+- Turn access off (locks them out at once, lists their upcoming sessions to re-staff)
+  and back on. Cancel or resend an invitation. Ops admins change office roles and
+  territories. Everything is logged in the person's account history; nothing is deleted.
+- Guard rails: nobody turns off their own access, and the last operations admin can't
+  be turned off or demoted.
+- Coaching Staff no longer has an "Active" checkbox: access is managed in Accounts only.
+- Fixed: typing another person's address with no screen in it (like `#/tm-lou`) landed
+  back on the previous person (since v2.6.0).
+- Live mode (local database only): the account changes run on a server function that
+  works out who is asking from their sign-in and saves all changed rows in one
+  transaction. Invitations arrive by email with a code; the first sign-in within 7 days
+  accepts them. Other changes are still read-only in live mode.
+- A demo saved in your browser by an earlier version is rebuilt fresh (people gained
+  new fields), so earlier demo edits are gone.
+- 226 app tests (23 new) and 29 database tests (10 new).
+
+Restore this if: the Accounts tab or the missing Active checkbox gets in the way of a
+review; v2.6.0 has neither.
+
 ## v2.6.0 (2026-11-01 ET): accounts plan, phase 3 (sign-in and live mode)
 
 The public demo is unchanged and doesn't include any of this code. Live mode runs

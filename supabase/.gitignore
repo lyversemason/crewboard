@@ -6,3 +6,6 @@
 .env.keys
 .env.local
 .env.*.local
+
+# Built from server/ by scripts/build-functions.ts
+functions/

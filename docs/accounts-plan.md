@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **Phases 1 to 3 done (v2.6.0, 2026-11-01)**; Phase 4 next. Nothing here is built yet.
+Status: **Phases 1 to 4 done (v2.7.0, 2026-11-01)**; Phase 5 next.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -161,7 +161,7 @@ Secrets: the Supabase "service" key, which bypasses every rule, lives only in th
 server functions' settings. The browser only ever has the public key, which is safe to
 publish because the database rules limit what it can do.
 
-## The Staff screen
+## The Staff screen (built as "Accounts")
 
 - One list per territory (all territories for ops admins): name, role, level, status
   chip (**Invited** yellow, **Active**, **Deactivated** muted), last sign-in.
@@ -278,6 +278,52 @@ Notes for later phases:
 - The sales form's live coverage check uses whatever the rep can read; in live mode it
   needs the server function described above before reps can rely on it.
 
-Next: **Phase 4**, invitations, the Staff screen, deactivate / reactivate and the guard
-rails. It needs the first server functions (inviting uses Supabase's admin API, which
-must never reach a browser): turn on `edge_runtime` in `supabase/config.toml`.
+**Phase 4 done (v2.7.0, 2026-11-01).** The screen is called **Accounts** (next to
+Coaching Staff, which lost its "Active" checkbox: access is turned on and off in
+Accounts only). People now carry an email, a status (invited / active / deactivated)
+and an account history. New rules in `access.ts` (`canInvite`, `canManageAccount`,
+`canChangeAccess`, `visibleAccounts`) and actions (`inviteUser`, `resendInvite`,
+`acceptInvite`, `deactivateUser`, `reactivateUser`, `changeAccess`) with the guard
+rails, all working in the demo, where the invite email is shown on screen with an
+"Accept" button. Live mode runs the account actions on the server:
+`server/run-action.ts`, bundled into `supabase/functions/run-action`. It works out who
+is asking from the sign-in token, loads everything, runs the same action, and saves the
+changed rows (`diffRows`) through the database's `apply_changes` in one transaction
+(migration `20261101190000_accounts.sql`, which also accepts an invitation on first
+sign-in within 7 days). Turning access off also blocks the sign-in account. Tests: 226
+app tests (23 new) and 29 database tests (10 new); browser runs passed 23 demo Accounts
+checks, 17 demo checks and 7 live Accounts checks.
+
+Found and fixed along the way: switching person through an address with no screen in
+it (`#/tm-lou`) landed back on the previous person (since v2.6.0). The router now has
+one address listener for every screen.
+
+How invitations really work (differs from the first sketch above):
+- Supabase's own invite email isn't used: its accounts start unconfirmed, and with
+  sign-up off Supabase refuses to send them a code; its link also lasts an hour. Instead
+  the server creates a confirmed sign-in account marked `invited_by` and sends the
+  normal sign-in email, which reads as the invitation while that mark is there
+  (`supabase/templates/magic_link.html`, subject too). First sign-in clears the mark.
+- The email's code lasts an hour; within the 7 days, the sign-in screen sends a new one.
+- Supabase sends at most one code per person per second locally (a minute in its hosted
+  default). The screens say "wait a moment" in plain words.
+- Supabase still emails a code to a turned-off person; the code doesn't sign them in.
+- The record is saved first and the email sent after. If only the email fails, the
+  person sees "Saved, but the invitation email couldn't be sent" and can resend.
+
+Notes for later phases:
+- Every live change loads the whole company, runs the action and writes the rows that
+  changed. Two people saving at the same moment: the later write wins for any row both
+  touched. Fine for a company this size; add version checks if it grows.
+- The server's "today" is New York time. Oakland is three hours behind, so near
+  midnight Eastern the server's day is a day ahead of Oakland's.
+- If saving fails right after an invitation created the sign-in account, that account
+  is left without a profile (the person would see "no profile"). Rare; an admin can
+  invite again with a different address, or the account can be removed by hand.
+- Live mode still loads data once at sign-in; it reloads after the person's own account
+  changes, not anyone else's.
+
+Next: **Phase 5**: open the remaining actions to the server (they already run through
+`run-action`; remove the `SERVER_ACTIONS` limit and test each), the audit log table and
+screen, the sales coverage check as a server function, error messages on the coach's
+Confirm buttons, and a GitHub Actions job that runs the database tests.

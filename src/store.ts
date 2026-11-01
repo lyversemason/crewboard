@@ -11,7 +11,7 @@ import type { AuthState } from './data/live'
 import { demoSource } from './data/source'
 
 export { worldOf } from './data/actions'
-export type { BulkResult, CoachEdit, IntakeInput, SaveCrewResult, State } from './data/actions'
+export type { BulkResult, CoachEdit, DeactivateResult, IntakeInput, InviteInput, SaveCrewResult, State } from './data/actions'
 export type { AuthState } from './data/live'
 
 // Live mode only when the build is given a database (npm run dev:live). The
@@ -65,3 +65,9 @@ export const updateSettings = action('updateSettings')
 export const updateTerms = action('updateTerms')
 export const submitIntake = action('submitIntake')
 export const updateIntake = action('updateIntake')
+export const inviteUser = action('inviteUser')
+export const resendInvite = action('resendInvite')
+export const acceptInvite = action('acceptInvite')
+export const deactivateUser = action('deactivateUser')
+export const reactivateUser = action('reactivateUser')
+export const changeAccess = action('changeAccess')

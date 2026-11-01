@@ -1,7 +1,7 @@
 // Database rows: the fictional company survives the trip into tables and back.
 
 import { describe, expect, it } from 'vitest'
-import { fromRows, toRows } from '../src/data/rows'
+import { diffRows, fromRows, toRows } from '../src/data/rows'
 import { demoSource } from '../src/data/source'
 import type { State } from '../src/data/actions'
 
@@ -49,5 +49,34 @@ describe('rows', () => {
     const rows = { ...toRows(state), coach_private: [] }
     const back = fromRows(rows, state.today)
     expect(back.coaches.every((c) => c.payRate === 0 && c.history.length === 0)).toBe(true)
+  })
+})
+
+describe('diffRows', () => {
+  const state = demoSource().getState()
+
+  it('finds nothing when nothing changed', () => {
+    expect(diffRows(toRows(state), toRows(state))).toEqual({})
+  })
+
+  it('sends only the changed rows', () => {
+    const s = state.sessions.find((x) => x.status === 'pending')!
+    const next = { ...state, sessions: state.sessions.map((x) => (x.id === s.id ? { ...x, notes: 'Bring cones' } : x)) }
+    const changes = diffRows(toRows(state), toRows(next))
+    expect(Object.keys(changes)).toEqual(['sessions'])
+    expect(changes.sessions!.map((r) => r.id)).toEqual([s.id])
+  })
+
+  it('replaces a session’s whole coaching staff when it changes, even to nobody', () => {
+    const s = state.sessions.find((x) => x.assignments.length > 0)!
+    const next = { ...state, sessions: state.sessions.map((x) => (x.id === s.id ? { ...x, assignments: [] } : x)) }
+    const changes = diffRows(toRows(state), toRows(next))
+    expect(changes.replace_assignments).toEqual([s.id])
+    expect(changes.session_assignments).toBeUndefined()
+  })
+
+  it('refuses a change that would delete a record', () => {
+    const next = { ...state, sessions: state.sessions.slice(1) }
+    expect(() => diffRows(toRows(state), toRows(next))).toThrow(/never deleted/)
   })
 })

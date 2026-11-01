@@ -6,6 +6,7 @@ import { go, href, useRoute } from './router'
 import { READ_ONLY_MESSAGE } from './data/live'
 import { auth, mode, resetDemo, useAuth, useStore } from './store'
 import { setGuide, useGuide } from './ui/guide'
+import { Accounts } from './views/Accounts'
 import { AdminDashboard } from './views/AdminDashboard'
 import { CalendarView } from './views/CalendarView'
 import { CoachApp } from './views/CoachApp'
@@ -25,12 +26,14 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
     { view: 'table', label: 'Table' },
     { view: 'staff', label: 'Coaching Staff' },
     { view: 'pipeline', label: 'Sales pipeline' },
+    { view: 'accounts', label: 'Accounts' },
   ],
   territory_manager: [
     { view: 'calendar', label: 'Calendar' },
     { view: 'table', label: 'Table' },
     { view: 'staff', label: 'Coaching Staff' },
     { view: 'pipeline', label: 'Sales pipeline' },
+    { view: 'accounts', label: 'Accounts' },
   ],
   sales_rep: [
     { view: 'intake', label: 'New center' },
@@ -54,7 +57,8 @@ function DemoApp() {
   const route = useRoute()
   const user = state.users.find((u) => u.id === route.userId)
   if (!user) return <Login />
-  return <Shell user={user} />
+  if (user.status !== 'active') return <DemoNoAccess user={user} />
+  return <Shell key={user.id} user={user} />
 }
 
 /** Live mode: whoever is signed in. The address can't change who you are. */
@@ -71,7 +75,24 @@ function LiveApp() {
   if (state.status === 'signed-out') return <SignIn auth={auth!} />
   if (state.status === 'no-access') return <NoAccess auth={auth!} state={state} />
   if (!me || route.userId !== me.id) return <p className="loading">Loading…</p>
-  return <Shell user={me} />
+  return <Shell key={me.id} user={me} />
+}
+
+/** The demo's version of "you can't sign in": someone's invite is pending, or their access was turned off. */
+function DemoNoAccess({ user }: { user: User }) {
+  return (
+    <div className="login signin">
+      <section className="card signin-card">
+        <h2>{user.name} can’t sign in</h2>
+        <p>{user.status === 'invited' ? 'Their invitation hasn’t been accepted yet.' : 'Their access has been turned off. Their history is kept.'}</p>
+        <div className="actions">
+          <a className="btn" href="#/">
+            Switch user
+          </a>
+        </div>
+      </section>
+    </div>
+  )
 }
 
 function Shell({ user }: { user: User }) {
@@ -108,6 +129,7 @@ function Shell({ user }: { user: User }) {
         {view === 'table' && <TableView user={user} />}
         {view === 'staff' && <CoachingStaff user={user} />}
         {view === 'pipeline' && <Pipeline user={user} />}
+        {view === 'accounts' && <Accounts user={user} />}
         {view === 'intake' && <SalesIntake user={user} />}
         {view === 'submissions' && <SalesSubmissions user={user} />}
       </main>

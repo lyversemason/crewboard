@@ -248,15 +248,15 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Sign-in email: the link, plus the 6-digit code for phones where the link opens
-# in a different browser.
+# in a different browser. For someone with a pending invitation (user metadata
+# invited_by, cleared on first sign-in) it reads as the invitation instead.
 [auth.email.template.magic_link]
-subject = "Your SoccerSessions sign-in"
+subject = "{{ if .Data.invited_by }}You’re invited to SoccerSessions{{ else }}Your SoccerSessions sign-in{{ end }}"
 content_path = "./supabase/templates/magic_link.html"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Invitations don't use Supabase's own invite email: its accounts start
+# unconfirmed, which sign-up-off refuses codes for, and its link lasts an hour.
+# See server/run-action.ts (sendInvite).
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
@@ -383,7 +383,8 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-enabled = false
+# Runs the server functions (supabase/functions, built from server/ by scripts/build-functions.ts).
+enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
@@ -423,3 +424,7 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# Built from server/run-action.ts (bundled JavaScript, see scripts/build-functions.ts).
+[functions.run-action]
+entrypoint = "./functions/run-action/index.js"

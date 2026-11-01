@@ -1,11 +1,12 @@
 // Coaching Staff (management): every coach in scope, who has confirmed this
 // week's availability, hours booked and cost. Click a coach to edit their
 // level, pay rate or contact details. Availability is the coach's own: shown
-// here read-only.
+// here read-only. Turning a coach on or off is done in Accounts.
 
 import { useState } from 'react'
 import { addDays, canEditCoach, dateSpan, canSeeMoney, hasConfirmedWeek, planningWeek, toMinutes, upcomingTimeOff, visibleRoster, weekHours, weekRange } from '../engine'
 import type { Coach, CoachLevel, User } from '../engine'
+import { href } from '../router'
 import { updateCoach } from '../store'
 import { Hint, LevelTag, Modal, Phone, Toast } from '../ui/bits'
 import { LEVEL_LABEL, money } from '../ui/format'
@@ -149,10 +150,10 @@ function CoachEditor({ user, coach, week, today, onClose, onSaved }: { user: Use
             <input type="email" value={draft.email} disabled={!editable} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
           </label>
         </div>
-        <label className="check">
-          <input type="checkbox" checked={draft.active} disabled={!editable} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
-          Active (inactive coaches can’t be scheduled)
-        </label>
+        <p className="small muted">
+          {coach.active ? 'Active.' : 'Inactive: can’t be scheduled.'} Sign-in access, and with it whether a coach can be scheduled, is turned on and off in{' '}
+          <a href={href(user.id, 'accounts')}>Accounts</a>.
+        </p>
         {editable && (
           <div className="actions">
             <button

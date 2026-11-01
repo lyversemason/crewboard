@@ -22,7 +22,8 @@ export interface DataSource {
   reset?(): void
 }
 
-const KEY = 'soccersessions:v3'
+// v4: people gained an email, account status and history (v2.7.0); older saves are rebuilt.
+const KEY = 'soccersessions:v4'
 
 function fresh(): State {
   const today = todayLocal()

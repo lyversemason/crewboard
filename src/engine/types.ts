@@ -17,14 +17,27 @@ export interface Territory {
   center: { lat: number; lng: number }
 }
 
+/** invited: can't sign in until they accept · active · deactivated: locked out, history kept. */
+export type AccountStatus = 'invited' | 'active' | 'deactivated'
+
 export interface User {
   id: string
   name: string
+  /** Sign-in email. */
+  email: string
   role: Role
   /** Territories this user may see. Ops admins see all regardless. */
   territoryIds: string[]
   /** Set for coaches: which roster entry this login belongs to. */
   coachId?: string
+  status: AccountStatus
+  invitedBy?: string
+  invitedAt?: string
+  activatedAt?: string
+  deactivatedAt?: string
+  deactivatedBy?: string
+  /** Account changes: invited, accepted, role changed, deactivated… */
+  history: HistoryEntry[]
 }
 
 export interface Coach {

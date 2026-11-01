@@ -10,11 +10,14 @@ import {
   coachConfirm,
   confirmSession,
   canAssign,
+  canChangeAccess,
   canChangeSettings,
   canEditAvailability,
   canEditCoach,
   canEditIntake,
   canEditTerms,
+  canInvite,
+  canManageAccount,
   canSubmitIntake,
   checkProgramCoverage,
   dayProblems,
@@ -39,6 +42,7 @@ import type {
   PlannedSession,
   ProgramDay,
   ProgramTerms,
+  Role,
   Session,
   Settings,
   TimeOff,
@@ -478,6 +482,198 @@ function updateIntake({ state, user, at }: Ctx, intakeId: string, input: IntakeI
   )
 }
 
+// ---------------------------------------------------------------- accounts
+
+/** How long an invitation can be accepted. */
+export const INVITE_DAYS = 7
+
+const ROLE_NAME: Record<Role, string> = { ops_admin: 'Operations admin', territory_manager: 'Territory manager', sales_rep: 'Sales rep', coach: 'Coach' }
+
+export interface InviteInput {
+  name: string
+  email: string
+  role: Role
+  /** Ignored for ops admins, who see every territory. Exactly one for a coach. */
+  territoryIds: string[]
+  /** For a coach: their roster details. */
+  coach?: { level: CoachLevel; payRate: number; phone: string }
+}
+
+function findUser(state: State, id: string): User {
+  const u = state.users.find((x) => x.id === id)
+  if (!u) throw new LifecycleError('Person not found.')
+  return u
+}
+
+function updateUser(state: State, id: string, change: (u: User) => User): State {
+  return { ...state, users: state.users.map((u) => (u.id === id ? change(u) : u)) }
+}
+
+const territoryNames = (state: State, ids: string[]) => ids.map((id) => state.territories.find((t) => t.id === id)?.name ?? id).join(' + ')
+
+function cleanTerritories(state: State, role: Role, ids: string[]): string[] {
+  if (role === 'ops_admin') return state.territories.map((t) => t.id)
+  const known = [...new Set(ids)].filter((id) => state.territories.some((t) => t.id === id))
+  if (!known.length) throw new LifecycleError('Pick a territory.')
+  if (role === 'coach' && known.length !== 1) throw new LifecycleError('A coach belongs to exactly one territory.')
+  return known
+}
+
+/** Nobody may remove the last active ops admin: the company would lock itself out. */
+function requireAnotherAdmin(state: State, target: User) {
+  const admins = state.users.filter((u) => u.role === 'ops_admin' && u.status === 'active')
+  if (target.role === 'ops_admin' && target.status === 'active' && admins.length <= 1) {
+    throw new LifecycleError('This is the only active operations admin. Make someone else an admin first.')
+  }
+}
+
+/** Adds a person who can't sign in until they accept. Returns their id. */
+function inviteUser({ state, user, at }: Ctx, input: InviteInput): Outcome<string> {
+  const name = input.name.trim()
+  const email = input.email.trim().toLowerCase()
+  if (!name) throw new LifecycleError('Enter their name.')
+  if (!isValidEmail(email)) throw new LifecycleError('Enter a valid email.')
+  if (state.users.some((u) => u.email.toLowerCase() === email)) throw new LifecycleError('Someone already has that email.')
+  const territoryIds = cleanTerritories(state, input.role, input.territoryIds)
+  if (!canInvite(user, input.role, territoryIds)) throw new LifecycleError('You can’t invite that role into that territory.')
+
+  let coachId: string | undefined
+  let coaches = state.coaches
+  if (input.role === 'coach') {
+    const c = input.coach
+    if (!c) throw new LifecycleError('Enter the coach’s level, pay rate and phone.')
+    if (!(c.payRate > 0)) throw new LifecycleError('Pay rate must be more than $0.')
+    if (!c.phone.trim()) throw new LifecycleError('Enter their phone number.')
+    const t = territoryIds[0]
+    coachId = idMaker(`${t}-k`, state.coaches)()
+    const none = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }
+    coaches = [
+      ...coaches,
+      {
+        id: coachId,
+        territoryId: t,
+        name,
+        phone: c.phone.trim(),
+        email,
+        level: c.level,
+        payRate: c.payRate,
+        // Can't be scheduled until they accept and set their availability.
+        active: false,
+        availability: none,
+        timeOff: [],
+        weekChanges: {},
+        history: [{ at, by: user.name, text: 'Added by invitation' }],
+      },
+    ]
+  }
+  const id = coachId ? `u-${coachId}` : idMaker('staff-', state.users)()
+  const invited: User = {
+    id,
+    name,
+    email,
+    role: input.role,
+    territoryIds,
+    coachId,
+    status: 'invited',
+    invitedBy: user.id,
+    invitedAt: at,
+    history: [{ at, by: user.name, text: `Invited as ${ROLE_NAME[input.role]} (${territoryNames(state, territoryIds)})` }],
+  }
+  return done({ ...state, coaches, users: [...state.users, invited] }, id)
+}
+
+function resendInvite({ state, user, at }: Ctx, userId: string): Outcome<void> {
+  const target = findUser(state, userId)
+  if (!canManageAccount(user, target)) throw new LifecycleError('You can’t manage this person’s access.')
+  if (target.status !== 'invited') throw new LifecycleError('Only a pending invitation can be sent again.')
+  return done(
+    updateUser(state, userId, (u) => ({ ...u, invitedAt: at, history: [...u.history, { at, by: user.name, text: 'Invitation sent again' }] })),
+    undefined,
+  )
+}
+
+/**
+ * The invited person accepts (in the demo, the "open the invite" button; in
+ * live mode the database does the same on their first sign-in).
+ */
+function acceptInvite({ state, user, at }: Ctx): Outcome<void> {
+  const me = findUser(state, user.id)
+  if (me.status !== 'invited') throw new LifecycleError('There’s no pending invitation for this person.')
+  const age = new Date(at).getTime() - new Date(me.invitedAt ?? at).getTime()
+  if (age > INVITE_DAYS * 24 * 3600 * 1000) throw new LifecycleError('This invitation has expired. Ask for a new one.')
+  const next = updateUser(state, me.id, (u) => ({ ...u, status: 'active', activatedAt: at, history: [...u.history, { at, by: me.name, text: 'Accepted the invitation' }] }))
+  return done(me.coachId ? updateCoachRecord(next, me.coachId, (c) => ({ ...c, active: true })) : next, undefined)
+}
+
+export interface DeactivateResult {
+  /** Upcoming sessions this coach was on: the manager re-staffs them. */
+  upcoming: string[]
+}
+
+/** Cancels an invitation or turns access off. Nothing is deleted. */
+function deactivateUser({ state, user, at }: Ctx, userId: string): Outcome<DeactivateResult> {
+  const target = findUser(state, userId)
+  if (user.id === userId) throw new LifecycleError('You can’t turn off your own access.')
+  if (!canManageAccount(user, target)) throw new LifecycleError('You can’t manage this person’s access.')
+  if (target.status === 'deactivated') throw new LifecycleError('Their access is already off.')
+  requireAnotherAdmin(state, target)
+  const text = target.status === 'invited' ? 'Invitation cancelled' : 'Access turned off'
+  let next = updateUser(state, userId, (u) => ({
+    ...u,
+    status: 'deactivated',
+    deactivatedAt: at,
+    deactivatedBy: user.id,
+    history: [...u.history, { at, by: user.name, text }],
+  }))
+  let upcoming: string[] = []
+  if (target.coachId) {
+    next = updateCoachRecord(next, target.coachId, (c) => ({ ...c, active: false, history: [...c.history, { at, by: user.name, text: `Marked inactive (${text.toLowerCase()})` }] }))
+    upcoming = state.sessions
+      .filter((s) => s.date >= state.today && (s.status === 'pending' || s.status === 'confirmed') && s.assignments.some((a) => a.coachId === target.coachId))
+      .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))
+      .map((s) => s.id)
+  }
+  return done(next, { upcoming })
+}
+
+/** Turns access back on, or invites again if they never accepted. */
+function reactivateUser({ state, user, at }: Ctx, userId: string): Outcome<void> {
+  const target = findUser(state, userId)
+  if (!canManageAccount(user, target)) throw new LifecycleError('You can’t manage this person’s access.')
+  if (target.status !== 'deactivated') throw new LifecycleError('Their access isn’t off.')
+  const accepted = !!target.activatedAt
+  let next = updateUser(state, userId, (u) => ({
+    ...u,
+    status: accepted ? 'active' : 'invited',
+    invitedAt: accepted ? u.invitedAt : at,
+    deactivatedAt: undefined,
+    deactivatedBy: undefined,
+    history: [...u.history, { at, by: user.name, text: accepted ? 'Access turned back on' : 'Invited again' }],
+  }))
+  if (accepted && target.coachId) {
+    next = updateCoachRecord(next, target.coachId, (c) => ({ ...c, active: true, history: [...c.history, { at, by: user.name, text: 'Marked active (access turned back on)' }] }))
+  }
+  return done(next, undefined)
+}
+
+/** Role and territories for office staff. Ops admins only; logged. */
+function changeAccess({ state, user, at }: Ctx, userId: string, role: Role, territoryIds: string[]): Outcome<void> {
+  if (!canChangeAccess(user)) throw new LifecycleError('Only operations admins change roles and territories.')
+  const target = findUser(state, userId)
+  if (target.role === 'coach' || role === 'coach') throw new LifecycleError('Coaches can’t be moved to or from office roles here. Invite them separately.')
+  const territories = cleanTerritories(state, role, territoryIds)
+  if (role !== 'ops_admin') requireAnotherAdmin(state, target)
+  const changes: string[] = []
+  if (role !== target.role) changes.push(`Role: ${ROLE_NAME[target.role]} → ${ROLE_NAME[role]}`)
+  const before = [...target.territoryIds].sort().join(',')
+  if ([...territories].sort().join(',') !== before) changes.push(`Territories: ${territoryNames(state, target.territoryIds)} → ${territoryNames(state, territories)}`)
+  if (!changes.length) return done(state, undefined)
+  return done(
+    updateUser(state, userId, (u) => ({ ...u, role, territoryIds: territories, history: [...u.history, ...changes.map((text) => ({ at, by: user.name, text }))] })),
+    undefined,
+  )
+}
+
 // ---------------------------------------------------------------- registry
 
 /**
@@ -502,9 +698,22 @@ export const ACTIONS = {
   updateTerms,
   submitIntake,
   updateIntake,
+  inviteUser,
+  resendInvite,
+  acceptInvite,
+  deactivateUser,
+  reactivateUser,
+  changeAccess,
 }
 
 export type ActionName = keyof typeof ACTIONS
 /** An action's arguments after the context. */
 export type ActionArgs<N extends ActionName> = (typeof ACTIONS)[N] extends (ctx: Ctx, ...args: infer A) => unknown ? A : never
 export type ActionResult<N extends ActionName> = ReturnType<(typeof ACTIONS)[N]>['result']
+
+/**
+ * Actions live mode can run so far (on the server, supabase/functions/run-action).
+ * The rest arrive with the audit log (docs/accounts-plan.md, phase 5).
+ * acceptInvite isn't here: in live mode the database accepts on first sign-in.
+ */
+export const SERVER_ACTIONS: readonly ActionName[] = ['inviteUser', 'resendInvite', 'deactivateUser', 'reactivateUser', 'changeAccess']

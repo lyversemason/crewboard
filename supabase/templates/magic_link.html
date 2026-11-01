@@ -1,4 +1,11 @@
+{{ if .Data.invited_by }}
+<h2>You’re invited to SoccerSessions</h2>
+<p>{{ .Data.invited_by }} invited you to SoccerSessions, Bramblewood Youth Soccer’s scheduling app.</p>
+<p>Open <a href="{{ .SiteURL }}">SoccerSessions</a> and sign in with this email address. For the next hour you can use this code: <strong>{{ .Token }}</strong>. After that, the sign-in screen sends you a new one. There’s no password.</p>
+<p>The invitation is good for 7 days. If you weren’t expecting it, ignore this email.</p>
+{{ else }}
 <h2>Sign in to SoccerSessions</h2>
 <p><a href="{{ .ConfirmationURL }}">Sign in</a></p>
 <p>Or type this code on the sign-in screen: <strong>{{ .Token }}</strong></p>
 <p>The link and code work once, for one hour. If you didn’t ask to sign in, ignore this email.</p>
+{{ end }}

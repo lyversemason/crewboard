@@ -147,7 +147,12 @@ API, real authentication and a shared database (planned in
   planned in [docs/accounts-plan.md](docs/accounts-plan.md).
 - **`src/data/rows.ts`**: converts the app's data to database rows and back.
 - **`src/data/live.ts`**: live mode (`npm run dev:live`): email sign-in, and a data
-  source that reads through the database's rules. Read-only until saving arrives.
+  source that reads through the database's rules. Account changes run on the server;
+  the rest is read-only until saving arrives.
+- **`server/run-action.ts`**: the server function (bundled into
+  `supabase/functions/run-action` by `scripts/build-functions.ts`). It runs the same
+  actions as the demo for the signed-in person and saves the changed rows in one
+  transaction.
 - **`supabase/migrations/`**: the database tables and read rules for the planned live
   version; `tests/db/` signs in as every role and checks them against `access.ts`.
 - **`src/store.ts`**: what the screens call. It hands each change to the data source by
