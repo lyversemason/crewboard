@@ -81,8 +81,9 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 198 automated tests cover the edge cases that matter in
-   the field: a gap exactly equal to drive + buffer passes and one minute less fails,
+3. **Tests for every rule.** 203 automated tests (plus 12 that run against the
+   database) cover the edge cases that matter in the field: a gap exactly equal to
+   drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
    override, trainees don't count toward the ratio, a day off blocks only that day, a
    reschedule past the planned end pushes the cycle out, a Thursday + Friday program
@@ -111,10 +112,13 @@ Decisions I made where the original spec was silent are listed in
 src/engine/     Rules engine: types, time + distance, validation, coverage, lifecycle,
                 access, availability, program cycles
 src/data/       Actions (every change the app can make), the data source
-                (this browser's demo copy), fictional company generator, ZIP lookup
+                (this browser's demo copy), database row conversion, fictional
+                company generator, ZIP lookup
 src/store.ts    What the screens call; hands each change to the data source
 src/views/      One screen per role or task (React)
-tests/          Vitest unit tests for the engine, actions, data source and demo data
+supabase/       Local database setup and the tables + read rules (migrations/)
+tests/          Vitest unit tests for the engine, actions, data source and demo data;
+                tests/db checks the database's read rules role by role
 scripts/        Screenshot generator for this README
 ```
 
@@ -131,6 +135,16 @@ npm install
 npm test          # all tests
 npm run dev       # http://localhost:5173
 npm run check     # type-check + lint + tests
+```
+
+The public demo needs nothing else. For the database version in progress (see
+[docs/accounts-plan.md](docs/accounts-plan.md)), Docker runs a local Supabase:
+
+```bash
+npm run db:start  # start the local database (first run downloads the images)
+npm run db:reset  # empty it and load the fictional company, with a sign-in per person
+npm run test:db   # sign in as every role and check what the database lets each one read
+npm run db:stop
 ```
 
 ## Versions

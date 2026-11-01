@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **Phase 1 done (v2.4.0, 2026-11-01)**; Phase 2 next. Nothing here is built yet.
+Status: **Phases 1 and 2 done (v2.5.0, 2026-11-01)**; Phase 3 next. Nothing here is built yet.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -60,7 +60,8 @@ entry (`Coach`), which makes this easier.
 
 | Field | Notes |
 |---|---|
-| `id` | Same id as the sign-in account |
+| `id` | The app's own id (`tm-lou`, `u-lou-k1`), so existing records keep pointing at people |
+| `auth_user_id` | Links to the sign-in account; empty until the invite is accepted |
 | `name`, `email` | |
 | `role` | `ops_admin`, `territory_manager`, `sales_rep`, `coach` |
 | `territory_ids` | Territories they may see (ops admins see all regardless) |
@@ -68,10 +69,14 @@ entry (`Coach`), which makes this easier.
 | `status` | `invited`, `active`, `deactivated` |
 | `invited_by`, `invited_at`, `activated_at`, `deactivated_at`, `deactivated_by` | |
 
-**`coach_pay`**: pay rates move out of the coach record into their own table. Database
-access rules work row by row, not column by column, so the cleanest way to keep the
-current promise that pay is "removed, not hidden" for coaches and sales is to keep pay
-somewhere only management can read at all.
+**`coach_private`**: pay rates move out of the coach record into their own table,
+together with the coach's change log (it records pay changes). Database access rules
+work row by row, not column by column, so the cleanest way to keep the current promise
+that pay is "removed, not hidden" for coaches and sales is to keep pay somewhere only
+management can read at all. **`center_terms`** does the same for a center's price.
+
+**No deleting, enforced by the database:** a trigger refuses every delete, even from
+server code with full access.
 
 **`audit_log`**: one row per event (who, what, to whom, when, before and after). The
 database allows adding rows and reading them; it allows nobody, admins included, to
@@ -136,17 +141,21 @@ browser:
 
 | `access.ts` rule | Database rule |
 |---|---|
-| `canSeeTerritory` / `visibleSessions` | Managers read sessions in their territories; ops admins read all; coaches read only sessions they're assigned to; sales reps none |
+| `canSeeTerritory` / `visibleSessions` / `intakeSessions` | Managers read sessions in their territories; ops admins read all; coaches read only sessions they're assigned to; sales reps only the sessions their own intakes created |
 | `visibleIntakes` | Reps read their own intakes; managers their territories |
 | `visibleRoster` | Coaches read active coaches in their own territory (no pay table access) |
-| `canSeeMoney` | Only management can read `coach_pay` |
-| `canEditAvailability` | Only the coach writes their own availability rows |
-| `canChangeSettings`, `canEditTerms` | Ops admin only |
+| `canSeeMoney` / `canSeePrice` | Only management reads `coach_private`; management and the signing rep read `center_terms` |
+| Every `canEdit…` rule | Browsers can't write at all (read access only); changes go through server functions that run the actions, which check these rules |
 
 Changes that must pass the rules engine (saving a coaching staff, rescheduling, sales
 intake with its coverage check) go through a server function that runs the **same
 `src/engine/` code** before writing. The browser's checks stay too, for instant
 feedback; the server's checks are the ones that count.
+
+The sales form's **live coverage check** needs every session in the territory to know
+who is free, and a rep can't read those. In live mode the check becomes a server
+function too: the rep's browser sends the proposed program and gets back "covered" or
+the open slots, never the sessions themselves.
 
 Secrets: the Supabase "service" key, which bypasses every rule, lives only in the
 server functions' settings. The browser only ever has the public key, which is safe to
@@ -193,7 +202,7 @@ Each phase ends with passing checks and its own version, per the changelog rules
 |---|---|---|---|
 | 0 | Decisions (done 2026-11-01, see below) | None | – |
 | 1 | Split the store into demo and live data sources; demo behaves exactly as today | None | v2.4.0 |
-| 2 | Local Supabase (Docker, no account); database tables, `coach_pay` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
+| 2 | Local Supabase (Docker, no account); database tables, `coach_private` and `center_terms` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
 | 3 | Sign-in screen and live mode; identity from the session, not the address | Live mode only | v2.6.0 |
 | 4 | Invitations, Staff screen, deactivate / reactivate, guard rails (both modes) | Staff screen in the demo | v2.7.0 |
 | 5 | Audit log table and screen; server functions for rule-checked saves | Audit tab in the demo | v2.8.0 |
@@ -226,7 +235,29 @@ Notes for later phases:
 - Screens don't yet show a "saving…" state; demo answers are instant. Add one when the
   live source arrives.
 
-Next: **Phase 2**, built on Supabase's local version (its command-line tool runs the
-whole stack, sign-in emails included, in Docker on this computer). No Supabase account
-is needed for phases 2 to 5; one is only needed when a live online copy is wanted
-(decision 3), and the user creates or approves it then.
+**Phase 2 done (v2.5.0, 2026-11-01).** Local Supabase in Docker (no account):
+`supabase/config.toml` keeps only the database, sign-in, API and the email catcher;
+public sign-up is off. `supabase/migrations/20261101170000_core_schema.sql` holds the
+tables, the no-delete trigger, read rules mirroring `access.ts` and read-only grants.
+`src/data/rows.ts` converts State to rows and back (5 tests). `npm run db:reset` loads
+the fictional company with one sign-in per person (local password
+`local-only-password`). `npm run test:db`: 12 tests sign in as all 42 people and match
+the database's answers to `access.ts`, and check strangers, deactivated people, direct
+writes, deletes and sign-ups are all refused. Breaking two rules on purpose made 6 of
+them fail, so they catch real mistakes.
+
+Notes for later phases:
+- Docker on this computer: the user is in the `docker` group (2026-11-01). Agent shells
+  started before that need `newgrp docker` until the next login.
+- The database ports listen on every network interface, and the firewall's Docker
+  rules let the home network (192.168.x) reach them (Tailscale is blocked). Run the
+  database only while working (`npm run db:stop` after), or set Docker's default
+  bind address to 127.0.0.1 (`"ip": "127.0.0.1"` in /etc/docker/daemon.json).
+- The database tests aren't in GitHub Actions yet; add a job that runs `supabase start`
+  before the first live deploy.
+- `fromRows` gives coaches without pay access `payRate: 0` and an empty change log;
+  screens must not show those as real values (they already don't for coaches).
+
+Next: **Phase 3**, sign-in screen and live mode: a live data source that reads through
+the database's rules, identity from the signed-in session instead of the address, and
+email-link sign-in tested with the local email catcher (Mailpit, port 54324).

@@ -3,6 +3,27 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.5.0 (2026-11-01 ET): accounts plan, phase 2 (local database and its rules)
+
+No visible change: the public demo doesn't use the database. This adds the database
+the live version will use, running locally in Docker (no Supabase account).
+
+- Tables for the whole company. Pay rates and coach change logs sit in a
+  management-only table, and a center's price in one only management and the signing
+  rep can read, so those numbers never reach anyone else.
+- Read rules that mirror the app's own access rules, and read-only access for
+  browsers: every change will go through server code that runs the same actions.
+- Nothing can be deleted: the database refuses, even for server code.
+- Sign-up is invitation only.
+- `npm run db:start`, `db:reset` (loads the fictional company, one sign-in per
+  person), `test:db`, `db:stop`.
+- 203 app tests (5 new, for converting data to rows and back), plus 12 database tests
+  that sign in as all 42 people and check each one reads exactly what the app's rules
+  allow.
+
+Restore this if: the local database setup gets in the way; the app itself is unchanged
+from v2.4.1.
+
 ## v2.4.1 (2026-11-01 ET): accounts plan, no account needed yet
 
 - `docs/accounts-plan.md`: phases 2 to 5 run on Supabase's local version in Docker, so no

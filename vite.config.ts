@@ -5,5 +5,6 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   base: './',
   plugins: [react()],
-  test: { include: ['tests/**/*.test.ts'] },
+  // tests/db needs the local database running; it has its own command (npm run test:db).
+  test: { include: ['tests/**/*.test.ts'], exclude: ['tests/db/**', 'node_modules/**'] },
 })

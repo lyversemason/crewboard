@@ -145,6 +145,9 @@ API, real authentication and a shared database (planned in
 - **`src/data/source.ts`**: where data lives. The demo source keeps the fictional
   company in the browser's localStorage; a live source backed by a shared database is
   planned in [docs/accounts-plan.md](docs/accounts-plan.md).
+- **`src/data/rows.ts`**: converts the app's data to database rows and back.
+- **`supabase/migrations/`**: the database tables and read rules for the planned live
+  version; `tests/db/` signs in as every role and checks them against `access.ts`.
 - **`src/store.ts`**: what the screens call. It hands each change to the data source by
   name and returns a promise, so screens already wait for answers the way they will
   when a server is behind them.
