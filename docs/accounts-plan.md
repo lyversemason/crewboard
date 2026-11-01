@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **Phases 1 to 5 done (v2.8.0, 2026-11-01)**; Phase 6 next.
+Status: **Done (v3.0.0, 2026-11-01).** All six phases are built and tested on a local database. A hosted online copy is optional and not set up (decision 3).
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -206,7 +206,7 @@ Each phase ends with passing checks and its own version, per the changelog rules
 | 3 | Sign-in screen and live mode; identity from the session, not the address | Live mode only | v2.6.0 |
 | 4 | Invitations, Staff screen, deactivate / reactivate, guard rails (both modes) | Staff screen in the demo | v2.7.0 |
 | 5 | Audit log table and screen; server functions for rule-checked saves | Audit tab in the demo | v2.8.0 |
-| 6 | Live deployment, README and screenshots updated | New README section | v3.0.0 |
+| 6 | README section and screenshots (a hosted online copy stays optional) | New README section | v3.0.0 |
 
 ## Decisions (made 2026-11-01)
 
@@ -350,7 +350,23 @@ Notes for later:
   the database. Add paging if that's ever not enough.
 - Change notes that already used short dates ("Tue Nov 24") appear that way in the log.
 
-Next: **Phase 6**, the wrap-up: README section and screenshots for the database version
-(sign-in, Accounts, Audit log, live mode), then v3.0.0. A live online copy stays
-optional (decision 3); if wanted, it needs a Supabase account, an email sending
-service, and `SITE_URL` / keys set for the hosted project.
+**Phase 6 done (v3.0.0, 2026-11-01).** README section "The database version" with how a
+change travels and what the tests prove; new screenshots: Accounts and Audit log (demo,
+`npm run screenshots`) and sign-in, the invitation email and "No access"
+(`npm run screenshots:live`, which signs in with real codes from the local email
+catcher). All demo screenshots were regenerated. The blocked-intake screenshot now uses
+Saturdays with 40 kids, which is blocked in every week of demo data (the old 5 PM
+Tuesday scenario was coverable in some weeks).
+
+**The plan is complete.** If a hosted online copy is ever wanted:
+1. Create a Supabase project (an outside sign-up; the user does it or approves it).
+2. Link it and push the migrations (`supabase link`, `supabase db push`).
+3. Deploy the server function (`npm run db:start` builds it; `supabase functions deploy
+   run-action`).
+4. Set up an email sending service (SMTP) in the project: Supabase's own email is for
+   testing only. Copy the two email templates and subjects from `supabase/config.toml`.
+5. Set the site address and redirect URLs, keep sign-up off, and decide on the code
+   rate limit (hosted default: one per minute).
+6. Build the app with the project's URL and public key (`VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY`) and host it somewhere other than the public demo's address.
+7. Seed only what's real: no fictional company and no local password accounts.

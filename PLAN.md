@@ -25,8 +25,8 @@ several cities. Before this system existed, three things went wrong over and ove
 
 | Role | Sees | Can do |
 |---|---|---|
-| Operations admin | Every territory | Everything a territory manager can, plus global settings (travel buffer, drive speed) and correcting a program's price after signing |
-| Territory manager | Only their territory | Calendar/table views, assign the coaching staff, override warnings, lifecycle changes, edit coaches (level, pay rate, contact, active), read program terms |
+| Operations admin | Every territory | Everything a territory manager can, plus global settings (travel buffer, drive speed), correcting a program's price after signing, everyone's accounts (invite, roles, turn access off and on) and the audit log |
+| Territory manager | Only their territory | Calendar/table views, assign the coaching staff, override warnings, lifecycle changes, edit coaches (level, pay rate, contact), invite coaches and turn their access off and on, read program terms |
 | Sales rep | The intake form and their own submissions | Submit a new center with its program terms (must pass the live coverage check); edit a submission until a territory manager confirms it |
 | Coach | Only their own shifts + their territory's coach directory | Confirm shifts (one or the whole week), tap-to-map, call/text buttons, own their availability: usual week, one-week changes, days off, weekly check-in |
 
@@ -126,11 +126,15 @@ week, directory, weekly availability), ops admin dashboard + settings.
 
 **v2:** everything in the section above.
 
+**v3 (the database version):** real sign-in by invitation, a shared database whose
+rules mirror the access rules, every change run on the server, the Accounts screen and
+the audit log. Built and tested locally; see [docs/accounts-plan.md](docs/accounts-plan.md).
+
 **Later:** real push/SMS reminders, hours × pay
 rate dashboard (week / month / 3-week pay cycle), calendar subscription (iCal feed),
 bulk copy of a cadence across N weeks, equipment bag inventory, address verification
-API, real authentication and a shared database (planned in
-[docs/accounts-plan.md](docs/accounts-plan.md)).
+API, and a hosted online copy of the database version (a Supabase project plus an email
+sending service).
 
 ## Architecture
 

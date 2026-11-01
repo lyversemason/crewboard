@@ -1,7 +1,7 @@
 {
   "name": "soccer-sessions",
   "private": true,
-  "version": "2.8.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset && tsx scripts/db-seed.ts",
     "test:db": "vitest run --config vitest.db.config.ts",
-    "dev:live": "tsx scripts/dev-live.ts"
+    "dev:live": "tsx scripts/dev-live.ts",
+    "screenshots:live": "node scripts/screenshots-live.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

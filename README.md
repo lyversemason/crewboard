@@ -1,6 +1,8 @@
 # SoccerSessions
 
-**Live demo: https://lyversemason.github.io/soccer-sessions/** (no login: pick a demo user)
+**Live demo: https://lyversemason.github.io/soccer-sessions/** (no login: pick a demo user).
+There's also a version with real sign-in and a shared database: see
+[The database version](#the-database-version-real-sign-in-shared-data).
 
 SoccerSessions is a scheduling, staffing-rules and sales-intake system for a field-service
 business: independent contractor coaches sent to daycares and schools across three
@@ -31,7 +33,8 @@ Turn on **Demo guide** (top right) for a short explanation on each screen.
    it shows who has confirmed and the day off, read-only.
 4. **Ops admin (Dana Whitfield).** The dashboard lists cycles ending in the next two weeks
    (renewal time). Change the safety buffer from 30 to 60 minutes and watch new
-   drive-time issues appear across territories.
+   drive-time issues appear across territories. Then open **Accounts**, invite a coach and
+   accept the invitation from the on-screen email, and find all of it in the **Audit log**.
 
 Everything you change is saved in your browser only. **Reset demo** restores it.
 
@@ -69,7 +72,63 @@ Everything you change is saved in your browser only. **Reset demo** restores it.
 </tr>
 </table>
 
+<table>
+<tr>
+<td><img src="docs/screenshots/10-accounts.png" alt="Accounts page with an invited coach"></td>
+<td><img src="docs/screenshots/11-audit-log.png" alt="Audit log"></td>
+</tr>
+<tr>
+<td>Accounts: people are invited, never handed a password; access is turned off, never deleted.</td>
+<td>Audit log: every logged change in the company, who made it and when.</td>
+</tr>
+</table>
+
 <img src="docs/screenshots/5-coach.png" alt="Coach phone view" width="320">
+
+## The database version: real sign-in, shared data
+
+The public demo runs entirely in your browser so anyone can try every role in a minute.
+The same app also runs against a real database with real accounts: built on Supabase
+(Postgres with sign-in) and tested end to end on a local copy in Docker. The plan, the
+decisions and what changed at each step are in [docs/accounts-plan.md](docs/accounts-plan.md).
+
+- **Invitation only, no passwords.** People are invited by email and sign in with a link
+  or a 6-digit code. There's no sign-up form, and an unknown address gets the same answer
+  as a known one, so the form can't reveal who works here.
+- **Who you are comes from your sign-in,** never from the page address.
+- **The database enforces the access rules.** Postgres row-level security mirrors
+  `src/engine/access.ts`: a Knoxville manager's browser never receives Louisville's
+  records, and pay rates and prices sit in tables coaches and reps can't read at all.
+- **Browsers can only read.** Every change goes to a server function that runs the same
+  action code as the demo, as the signed-in person, then saves the changed rows and
+  their audit entries in one transaction. Nothing is ever half saved.
+- **Nothing is deleted, and the audit log can only be added to.** The database refuses
+  both, even for server code with full access.
+- **Tested against the real thing.** 41 database tests sign in as all 42 people and check
+  each one reads exactly what `access.ts` allows, make every kind of change as the person
+  who'd really make it, and check that strangers, turned-off accounts, direct writes,
+  deletes and audit-log edits are all refused. Loosening a rule on purpose makes them
+  fail. GitHub runs them on every push.
+
+```
+browser ──reads──▶ Postgres, filtered by row-level security (= access.ts)
+   │
+   └── change ──▶ server function: same actions and rules as the demo, as the signed-in person
+                     └──▶ apply_changes: the changed rows + their audit entries, one transaction
+```
+
+<table>
+<tr>
+<td><img src="docs/screenshots/12-sign-in.png" alt="Sign-in screen"></td>
+<td><img src="docs/screenshots/13-invitation-email.png" alt="Invitation email with a sign-in code"></td>
+<td><img src="docs/screenshots/14-no-access.png" alt="No access after being turned off" width="260"></td>
+</tr>
+<tr>
+<td>Sign in with your work email: a link or a code, no password.</td>
+<td>The invitation a new coach receives.</td>
+<td>Turned off: locked out at once, history kept.</td>
+</tr>
+</table>
 
 ## How it was built
 
@@ -105,6 +164,12 @@ use.
    and a calmer, clearer design. The plain-language list is in the
    [changelog](CHANGELOG.md).
 
+6. **Planned before it was built.** The database version started as a written plan
+   ([docs/accounts-plan.md](docs/accounts-plan.md)): the approach, the open decisions
+   (provider, how coaches sign in, whether to run an online copy), and six phases, each
+   shipped as its own tested version. The demo kept working at every step. Problems the
+   tests caught along the way are written up in the plan and the changelog.
+
 Decisions I made where the original spec was silent are listed in
 [PLAN.md](PLAN.md#the-rules-engine).
 
@@ -113,22 +178,26 @@ Decisions I made where the original spec was silent are listed in
 ```
 src/engine/     Rules engine: types, time + distance, validation, coverage, lifecycle,
                 access, availability, program cycles
-src/data/       Actions (every change the app can make), the data source
-                (this browser's demo copy), database row conversion, fictional
-                company generator, ZIP lookup
+src/data/       Actions (every change the app can make), queries, the audit log, the
+                data sources (demo: this browser; live: the database), database row
+                conversion, fictional company generator, ZIP lookup
 src/store.ts    What the screens call; hands each change to the data source
+server/         The server function (bundled into supabase/functions/)
 src/views/      One screen per role or task (React)
-supabase/       Local database setup and the tables + read rules (migrations/)
-tests/          Vitest unit tests for the engine, actions, data source and demo data;
-                tests/db checks the database's read rules role by role
-scripts/        Screenshot generator for this README
+supabase/       Local database setup, email templates, and the tables + read rules
+                (migrations/)
+tests/          Vitest unit tests for the engine, actions, queries, audit log and demo
+                data; tests/db runs against the database, role by role
+scripts/        Local database helpers, the server function build, screenshots
 ```
 
 Built with TypeScript, React and Vite, and deployed to GitHub Pages by GitHub Actions
-on every push (tests must pass first). There's no backend: each visitor gets their own
-copy of the demo company in localStorage. A production version would add real sign-in,
-a shared database, a routing API for drive times and real text messages. (The address
-search is the one live outside call: typed addresses go to the free Photon service.)
+on every push (tests must pass first). The public demo has no backend: each visitor gets
+their own copy of the demo company in localStorage. The database version adds Supabase
+(Postgres, sign-in, a server function). A production deployment would add a hosted
+Supabase project with an email sending service, a routing API for drive times and real
+text messages. (The address search is the one live outside call: typed addresses go to
+the free Photon service.)
 
 ## Run it locally
 
@@ -148,6 +217,7 @@ npm run db:reset  # empty it and load the fictional company, with a sign-in per 
 npm run test:db   # sign in as every role: what each may read, and every kind of change saved
 npm run dev:live  # the app in live mode at http://127.0.0.1:5173: sign in by email
                   # (emails land in the local catcher at http://127.0.0.1:54324)
+npm run screenshots:live  # with dev:live running: the database version's screenshots
 npm run db:stop
 ```
 

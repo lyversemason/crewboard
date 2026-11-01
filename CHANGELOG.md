@@ -3,6 +3,34 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v3.0.0 (2026-11-01 ET): the database version, complete
+
+The accounts plan (docs/accounts-plan.md) is done: SoccerSessions now also runs with real
+sign-in and a shared database, built and tested on a local copy. The public demo works
+exactly as before, with no login.
+
+What v2.4.0 to v2.8.0 added, in one place:
+- Sign in by invitation only, with an email link or code; no passwords, no sign-up.
+- Who you are comes from your sign-in, not the page address.
+- The database enforces the access rules; pay and prices sit where only the right
+  people can read them.
+- Every change runs on a server function with the same rules as the demo, saved in
+  one transaction with its audit entries. Nothing is ever deleted.
+- Accounts (invite, turn access off and on, roles) and the Audit log, in the demo too.
+- 236 app tests and 41 database tests, the database ones also run by GitHub.
+
+This version itself:
+- README: a section on the database version (how a change travels, what the tests
+  prove) and new screenshots: Accounts, Audit log, sign-in, the invitation email and
+  "No access". Every demo screenshot was regenerated.
+- `npm run screenshots:live` makes the database version's screenshots, signing in with
+  real codes from the local email catcher.
+- The "blocked" sales screenshot now uses Saturdays with 40 kids, which the coaching
+  staff can't cover in any week of demo data.
+
+Restore this if: you want the README without the database version (v2.8.0); the app is
+the same.
+
 ## v2.8.0 (2026-11-01 ET): accounts plan, phase 5 (audit log, saving everything)
 
 Visible in the public demo: an **Audit log** tab for operations admins.

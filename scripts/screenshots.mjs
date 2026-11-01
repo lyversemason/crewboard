@@ -1,6 +1,7 @@
-// Regenerates the README screenshots from a running preview server.
+// Regenerates the README screenshots of the public demo from a running preview server.
 //   npm run build && npx vite preview --port 10003 &
-//   npm run screenshots
+//   npm run screenshots          (BASE_URL=http://127.0.0.1:<port>/ for another port)
+// The database version's screenshots come from scripts/screenshots-live.mjs.
 // Uses the system Chromium (set CHROMIUM_PATH to override).
 
 import { chromium } from 'playwright-core'
@@ -72,18 +73,34 @@ await shot('4-override-dialog', 'tm-lou/calendar', {
   await p.getByLabel('ZIP').fill('40205')
   await p.getByRole('button', { name: 'Thu', exact: true }).click()
   await p.getByLabel('Cycle price ($)').fill('2880')
-  // A late start with a huge group: not enough coaches are free.
-  await p.locator('.program-day').first().getByLabel('Start time').fill('17:00')
-  await p.getByLabel('Tuesday group 1 kids').fill('40')
+  // Saturdays with 40 kids: too few coaches work Saturdays (blocked in every week of demo data).
+  await p.getByRole('button', { name: 'Sat', exact: true }).click()
+  await p.getByLabel('Saturday group 1 kids').fill('40')
   await p.locator('legend', { hasText: 'Program terms' }).scrollIntoViewIfNeeded()
-  await p.waitForTimeout(250)
+  await p.locator('.verdict.no').waitFor()
   await p.screenshot({ path: `${OUT}/7-intake-blocked.png` })
-  await p.getByLabel('Tuesday group 1 kids').fill('12')
-  await p.locator('.program-day').first().getByLabel('Start time').fill('10:00')
+  // Back to Tuesdays and Thursdays: covered.
+  await p.getByRole('button', { name: 'Sat', exact: true }).click()
   await p.locator('legend', { hasText: 'Program terms' }).scrollIntoViewIfNeeded()
-  await p.waitForTimeout(250)
+  await p.locator('.verdict.yes').waitFor()
   await p.screenshot({ path: `${OUT}/8-intake-covered.png` })
 }
+
+// Accounts: invite a coach; their panel shows the demo's on-screen invitation email.
+await shot('10-accounts', 'admin/accounts', {
+  height: 820,
+  before: async (p) => {
+    await p.getByRole('button', { name: 'Invite someone' }).click()
+    await p.getByLabel('Name').fill('Jordan Reyes')
+    await p.getByLabel(/Email/).fill('jordan.reyes@example.com')
+    await p.getByRole('group', { name: 'Territories' }).getByRole('button', { name: 'Louisville' }).click()
+    await p.getByLabel('Phone').fill('5025550177')
+    await p.getByRole('button', { name: 'Send invitation' }).click()
+  },
+})
+
+// Audit log: a manager's override at the top.
+await shot('11-audit-log', 'admin/audit', { height: 760 })
 
 await browser.close()
 console.log('Screenshots written to', OUT)
