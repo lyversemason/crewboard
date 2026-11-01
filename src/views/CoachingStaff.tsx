@@ -158,9 +158,9 @@ function CoachEditor({ user, coach, week, today, onClose, onSaved }: { user: Use
             <button
               className={`btn ${dirty ? 'save-ready' : 'save-idle'}`}
               disabled={!dirty}
-              onClick={() => {
+              onClick={async () => {
                 try {
-                  updateCoach(user, coach.id, draft)
+                  await updateCoach(user, coach.id, draft)
                   onSaved(`Saved changes to ${coach.name}.`)
                 } catch (e) {
                   setError(e instanceof Error ? e.message : String(e))

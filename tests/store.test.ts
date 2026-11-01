@@ -27,7 +27,7 @@ const user = (id: string) => getState().users.find((u) => u.id === id)!
 beforeEach(() => resetDemo())
 
 describe('saveCrew', () => {
-  it('asks for confirmation before saving an overridable violation, then logs it', () => {
+  it('asks for confirmation before saving an overridable violation, then logs it', async () => {
     const tm = user('tm-lou')
     const st = getState()
     // Find an upcoming session and an assistant who is free for it.
@@ -37,26 +37,26 @@ describe('saveCrew', () => {
     const { s, assistant } = pairs.find((p) => !hasBlock(validateCrew(p.s, [p.assistant.id], worldOf(st))))!
 
     // Assistant alone: no lead coach -> must confirm first.
-    const first = saveCrew(tm, s.id, [assistant.id], false)
+    const first = await saveCrew(tm, s.id, [assistant.id], false)
     expect(first.ok).toBe(false)
     expect('needsConfirm' in first && first.needsConfirm.some((v) => v.code === 'no_lead')).toBe(true)
 
-    expect(saveCrew(tm, s.id, [assistant.id], true)).toEqual({ ok: true })
+    expect(await saveCrew(tm, s.id, [assistant.id], true)).toEqual({ ok: true })
     const saved = getState().sessions.find((x) => x.id === s.id)!
     expect(saved.overrides.map((o) => o.code)).toContain('no_lead')
     expect(saved.overrides[0].by).toBe(tm.name)
     expect(saved.history.at(-1)?.text).toMatch(/Overrode/)
   })
 
-  it('refuses a manager from another territory', () => {
+  it('refuses a manager from another territory', async () => {
     const s = getState().sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed')!
-    expect(() => saveCrew(user('tm-knx'), s.id, [], false)).toThrow(LifecycleError)
+    await expect(saveCrew(user('tm-knx'), s.id, [], false)).rejects.toThrow(LifecycleError)
   })
 
-  it('refuses sales reps and coaches', () => {
+  it('refuses sales reps and coaches', async () => {
     const s = getState().sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed')!
-    expect(() => saveCrew(user('rep-east'), s.id, [], false)).toThrow(LifecycleError)
-    expect(() => saveCrew(user('u-lou-k1'), s.id, [], false)).toThrow(LifecycleError)
+    await expect(saveCrew(user('rep-east'), s.id, [], false)).rejects.toThrow(LifecycleError)
+    await expect(saveCrew(user('u-lou-k1'), s.id, [], false)).rejects.toThrow(LifecycleError)
   })
 })
 
@@ -87,29 +87,29 @@ describe('submitIntake', () => {
     ...over,
   })
 
-  it('creates pending, unassigned sessions when the roster can cover it', () => {
+  it('creates pending, unassigned sessions when the roster can cover it', async () => {
     const before = st().sessions.length
-    const id = submitIntake(user('rep-east'), input())
+    const id = await submitIntake(user('rep-east'), input())
     const created = st().sessions.filter((s) => s.intakeId === id)
     expect(st().sessions.length).toBe(before + 2)
     expect(created.every((s) => s.status === 'pending' && s.assignments.length === 0)).toBe(true)
   })
 
-  it('re-checks coverage and refuses an unstaffable slot even if the UI were bypassed', () => {
+  it('re-checks coverage and refuses an unstaffable slot even if the UI were bypassed', async () => {
     // 19-20h is outside everyone's availability.
     // With every Louisville lead coach inactive, nobody can lead the session.
     for (const c of st().coaches.filter((x) => x.territoryId === 'lou' && x.level === 'lead')) {
-      updateCoach(user('admin'), c.id, { level: c.level, payRate: c.payRate, phone: c.phone, email: c.email, active: false })
+      await updateCoach(user('admin'), c.id, { level: c.level, payRate: c.payRate, phone: c.phone, email: c.email, active: false })
     }
-    expect(() => submitIntake(user('rep-east'), input())).toThrow(/can't be staffed/)
-    expect(() => submitIntake(user('rep-east'), input({ days: [day(addDaysFrom(st().today, 9), { start: '19:00', end: '19:30' })] }))).toThrow(/9am and 6pm/)
+    await expect(submitIntake(user('rep-east'), input())).rejects.toThrow(/can't be staffed/)
+    await expect(submitIntake(user('rep-east'), input({ days: [day(addDaysFrom(st().today, 9), { start: '19:00', end: '19:30' })] }))).rejects.toThrow(/9am and 6pm/)
   })
 
-  it('lets each day start on its own date, with its own groups', () => {
+  it('lets each day start on its own date, with its own groups', async () => {
     // Day one starts next week; the second day of the week only starts the week after.
     const first = addDaysFrom(st().today, 9)
     const second = addDaysFrom(first, 8)
-    const id = submitIntake(
+    const id = await submitIntake(
       user('rep-east'),
       input({ days: [day(first), day(second, { start: '11:00', end: '11:45', groups: [{ players: 11, ageRange: '4-5', minutes: 45 }] })] }),
     )
@@ -122,32 +122,32 @@ describe('submitIntake', () => {
     expect(terms.firstDates?.[weekdayOf(second)]).toBe(second)
   })
 
-  it('refuses a first date that isn’t on the chosen weekday', () => {
+  it('refuses a first date that isn’t on the chosen weekday', async () => {
     const date = addDaysFrom(st().today, 9)
     const wrongDay = (weekdayOf(date) % 6) + 1
-    expect(() => submitIntake(user('rep-east'), input({ days: [day(date, { weekday: wrongDay as Weekday })] }))).toThrow(/is a .*day\. Pick a/)
+    await expect(submitIntake(user('rep-east'), input({ days: [day(date, { weekday: wrongDay as Weekday })] }))).rejects.toThrow(/is a .*day\. Pick a/)
   })
 
-  it('refuses a misspelled contact email', () => {
+  it('refuses a misspelled contact email', async () => {
     const bad = input()
     bad.center.poc.email = 'candyqueen@gmail.con'
-    expect(() => submitIntake(user('rep-east'), bad)).toThrow(/valid contact email/)
+    await expect(submitIntake(user('rep-east'), bad)).rejects.toThrow(/valid contact email/)
   })
 
-  it('refuses a rep outside the territory', () => {
-    expect(() => submitIntake(user('rep-west'), input())).toThrow(LifecycleError)
+  it('refuses a rep outside the territory', async () => {
+    await expect(submitIntake(user('rep-west'), input())).rejects.toThrow(LifecycleError)
   })
 })
 
 describe('demo data', () => {
-  it('has no hard-rule violations and every override is real', () => {
+  it('has no hard-rule violations and every override is real', async () => {
     const w = worldOf(getState())
     for (const s of w.sessions) {
       expect(openIssues(s, w).filter((v) => v.severity === 'block')).toEqual([])
     }
   })
 
-  it('uses only fictional contact details', () => {
+  it('uses only fictional contact details', async () => {
     const { coaches, centers } = getState()
     for (const c of coaches) {
       expect(c.phone).toMatch(/^\d{3}-555-01\d{2}$/)
@@ -159,21 +159,21 @@ describe('demo data', () => {
     }
   })
 
-  it('never gives a facility contact the same name as a coach', () => {
+  it('never gives a facility contact the same name as a coach', async () => {
     const { coaches, centers } = getState()
     const coachNames = new Set(coaches.map((c) => c.name))
     expect(centers.filter((c) => coachNames.has(c.poc.name))).toEqual([])
   })
 
-  it('numbers a rescheduled session like the others (s145, not a random string)', () => {
+  it('numbers a rescheduled session like the others (s145, not a random string)', async () => {
     const st = getState()
     const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
     const before = Math.max(...st.sessions.map((x) => Number(x.id.slice(1)) || 0))
-    const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
+    const id = await reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
     expect(id).toBe(`s${before + 1}`)
   })
 
-  it('has something to show on every screen', () => {
+  it('has something to show on every screen', async () => {
     const { sessions, intakes } = getState()
     expect(sessions.some((s) => s.status === 'rescheduled')).toBe(true)
     expect(sessions.some((s) => s.status === 'cancelled')).toBe(true)
@@ -203,8 +203,8 @@ describe('editing a submission (sales)', () => {
   // Clover Patch runs Thursdays + Fridays; move only the Thursday time.
   const thursdaysAt = (start: string, end: string) => clover().schedule.days.map((d) => (d.weekday === 4 ? { ...d, start, end } : d))
 
-  it('moves the pending sessions in place and logs who changed what', () => {
-    updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))
+  it('moves the pending sessions in place and logs who changed what', async () => {
+    await updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))
     const sessions = getState().sessions.filter((s) => s.intakeId === 'i1' && s.status === 'pending')
     expect(sessions.length).toBe(16)
     const thursdays = sessions.filter((s) => weekdayOf(s.date) === 4)
@@ -213,32 +213,32 @@ describe('editing a submission (sales)', () => {
     expect(thursdays[0].history.at(-1)?.text).toMatch(/^Changed by sales: .* → .*1pm–2:15pm$/)
   })
 
-  it('cancels (never deletes) sessions dropped by a shorter cycle', () => {
+  it('cancels (never deletes) sessions dropped by a shorter cycle', async () => {
     const before = getState().sessions.length
-    updateIntake(rep(), 'i1', input({ cycleWeeks: 4 }))
+    await updateIntake(rep(), 'i1', input({ cycleWeeks: 4 }))
     const mine = getState().sessions.filter((s) => s.intakeId === 'i1')
     expect(getState().sessions.length).toBe(before)
     expect(mine.filter((s) => s.status === 'cancelled').every((s) => s.cancelReason === 'changed_by_sales')).toBe(true)
     expect(mine.filter((s) => s.status === 'pending').length).toBe(8)
   })
 
-  it('is locked once a territory manager confirms a session', () => {
+  it('is locked once a territory manager confirms a session', async () => {
     const first = getState().sessions.find((s) => s.intakeId === 'i1')!
-    confirmWithFacility(user('tm-lou'), first.id)
-    expect(() => updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))).toThrow(/can’t be changed/)
+    await confirmWithFacility(user('tm-lou'), first.id)
+    await expect(updateIntake(rep(), 'i1', input({ days: thursdaysAt('13:00', '14:15') }))).rejects.toThrow(/can’t be changed/)
   })
 
-  it('only the rep who signed it can edit it', () => {
-    expect(() => updateIntake(user('rep-west'), 'i1', input())).toThrow(LifecycleError)
-    expect(() => updateIntake(user('tm-lou'), 'i1', input())).toThrow(LifecycleError)
+  it('only the rep who signed it can edit it', async () => {
+    await expect(updateIntake(user('rep-west'), 'i1', input())).rejects.toThrow(LifecycleError)
+    await expect(updateIntake(user('tm-lou'), 'i1', input())).rejects.toThrow(LifecycleError)
   })
 })
 
 describe('program terms after signing', () => {
-  it('only an ops admin can change the price, and it is logged', () => {
+  it('only an ops admin can change the price, and it is logged', async () => {
     const center = getState().centers.find((c) => c.id === 'lou-c8')!
-    expect(() => updateTerms(user('tm-lou'), center.id, { ...center.terms!, cycleRate: 1500 })).toThrow(LifecycleError)
-    updateTerms(user('admin'), center.id, { ...center.terms!, cycleRate: 1500 })
+    await expect(updateTerms(user('tm-lou'), center.id, { ...center.terms!, cycleRate: 1500 })).rejects.toThrow(LifecycleError)
+    await updateTerms(user('admin'), center.id, { ...center.terms!, cycleRate: 1500 })
     const after = getState().centers.find((c) => c.id === 'lou-c8')!
     expect(after.terms!.cycleRate).toBe(1500)
     expect(after.history?.at(-1)?.text).toBe('Cycle price: $2720 → $1500')
@@ -248,30 +248,30 @@ describe('program terms after signing', () => {
 describe('coaches', () => {
   const coachOf = (id: string) => getState().coaches.find((c) => c.id === id)!
 
-  it('territory managers and ops admins can edit level and pay rate; each change is logged', () => {
+  it('territory managers and ops admins can edit level and pay rate; each change is logged', async () => {
     const c = coachOf('lou-k1')
-    updateCoach(user('tm-lou'), c.id, { level: 'assistant', payRate: c.payRate + 2, phone: c.phone, email: c.email, active: true })
+    await updateCoach(user('tm-lou'), c.id, { level: 'assistant', payRate: c.payRate + 2, phone: c.phone, email: c.email, active: true })
     const after = coachOf('lou-k1')
     expect(after.level).toBe('assistant')
     expect(after.history.map((h) => h.text)).toEqual(['Level: Lead → Assistant', `Pay rate: $${c.payRate}/hr → $${c.payRate + 2}/hr`])
     expect(after.history[0].by).toBe('Priya Raman')
-    expect(() => updateCoach(user('tm-knx'), c.id, { ...after, level: 'lead' })).toThrow(LifecycleError)
-    expect(() => updateCoach(user('rep-east'), c.id, { ...after, level: 'lead' })).toThrow(LifecycleError)
+    await expect(updateCoach(user('tm-knx'), c.id, { ...after, level: 'lead' })).rejects.toThrow(LifecycleError)
+    await expect(updateCoach(user('rep-east'), c.id, { ...after, level: 'lead' })).rejects.toThrow(LifecycleError)
   })
 
-  it('availability belongs to the coach: managers can read it but not change it', () => {
+  it('availability belongs to the coach: managers can read it but not change it', async () => {
     const c = coachOf('lou-k2')
-    expect(() => setAvailability(user('tm-lou'), c.id, c.availability)).toThrow(LifecycleError)
-    expect(() => setAvailability(user('admin'), c.id, c.availability)).toThrow(LifecycleError)
-    setAvailability(user('u-lou-k2'), c.id, { ...c.availability, 6: [] })
+    await expect(setAvailability(user('tm-lou'), c.id, c.availability)).rejects.toThrow(LifecycleError)
+    await expect(setAvailability(user('admin'), c.id, c.availability)).rejects.toThrow(LifecycleError)
+    await setAvailability(user('u-lou-k2'), c.id, { ...c.availability, 6: [] })
     expect(coachOf('lou-k2').availability[6]).toEqual([])
   })
 
-  it('a day off makes the coach unavailable that day only', () => {
+  it('a day off makes the coach unavailable that day only', async () => {
     const c = coachOf('lou-k2')
     const day = addDaysFrom(getState().today, 20)
     const hours = c.availability[weekdayOf(day)]
-    addTimeOff(user('u-lou-k2'), c.id, { from: day, to: day, note: 'Exam' })
+    await addTimeOff(user('u-lou-k2'), c.id, { from: day, to: day, note: 'Exam' })
     const after = coachOf('lou-k2')
     expect(isAvailable(after, day, '10:00', '11:00')).toBe(false)
     if (hours.includes(10)) expect(isAvailable(after, addDaysFrom(day, 7), '10:00', '11:00')).toBe(true)
@@ -279,28 +279,28 @@ describe('coaches', () => {
 })
 
 describe('reschedule', () => {
-  it('notifies the coaching staff in the history', () => {
+  it('notifies the coaching staff in the history', async () => {
     const st = getState()
     const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today && x.assignments.length)!
-    const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
+    const id = await reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45')
     const moved = getState().sessions.find((x) => x.id === id)!
     expect(moved.history.at(-1)?.text).toMatch(/^Coaching staff notified by text to re-confirm: /)
   })
 
-  it('keeps the reason note on both the original and the new session', () => {
+  it('keeps the reason note on both the original and the new session', async () => {
     const st = getState()
     const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
-    const id = reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'Field trip that morning')
+    const id = await reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'Field trip that morning')
     const old = getState().sessions.find((x) => x.id === s.id)!
     const moved = getState().sessions.find((x) => x.id === id)!
     expect(old.history.at(-1)?.text).toMatch(/\(Field trip that morning\)$/)
     expect(moved.history[0].text).toMatch(/\(Field trip that morning\)$/)
   })
 
-  it('refuses a note over the limit', () => {
+  it('refuses a note over the limit', async () => {
     const st = getState()
     const s = st.sessions.find((x) => x.territoryId === 'lou' && x.status === 'confirmed' && x.date >= st.today)!
-    expect(() => reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'x'.repeat(NOTE_MAX + 1))).toThrow(/under 300 characters/)
+    await expect(reschedule(user('tm-lou'), s.id, s.date, '17:00', '17:45', 'x'.repeat(NOTE_MAX + 1))).rejects.toThrow(/under 300 characters/)
   })
 })
 
@@ -313,17 +313,17 @@ describe('bulk staffing a program', () => {
     return getState().coaches.find((c) => c.territoryId === 'lou' && c.level === 'lead' && c.active && validateCrew(s, [c.id], w).length === 0)!
   }
 
-  it('adds the saved coaches to every open session they can work, and leaves the rest open with a reason', () => {
+  it('adds the saved coaches to every open session they can work, and leaves the rest open with a reason', async () => {
     const first = clover()[0]
     const lead = freeLead(first.id)
-    expect(saveCrew(tm(), first.id, [lead.id], false)).toEqual({ ok: true })
+    expect(await saveCrew(tm(), first.id, [lead.id], false)).toEqual({ ok: true })
     // The dry run the screen shows matches what the click does.
     const preview = planBulk(getState().sessions.find((x) => x.id === first.id)!, [lead.id], worldOf(getState()), getState().today)
-    const r = staffOpenSessions(tm(), first.id)
+    const r = await staffOpenSessions(tm(), first.id)
     expect(r.filled).toEqual(preview.fillable.map((s) => s.id))
     expect(r.filled.length + r.skipped.length).toBe(15)
     // A second click has nothing left to fill.
-    expect(staffOpenSessions(tm(), first.id).filled).toEqual([])
+    expect((await staffOpenSessions(tm(), first.id)).filled).toEqual([])
     expect(r.filled.length).toBeGreaterThan(0)
     for (const id of r.filled) {
       const s = getState().sessions.find((x) => x.id === id)!
@@ -339,35 +339,35 @@ describe('bulk staffing a program', () => {
     for (const id of r.filled) expect(openIssues(getState().sessions.find((x) => x.id === id)!, w)).toEqual([])
   })
 
-  it('can fill just one weekday (Clover Patch: Thursdays only)', () => {
+  it('can fill just one weekday (Clover Patch: Thursdays only)', async () => {
     const first = clover()[0] // a Thursday
-    saveCrew(tm(), first.id, [freeLead(first.id).id], false)
-    const r = staffOpenSessions(tm(), first.id, 4)
+    await saveCrew(tm(), first.id, [freeLead(first.id).id], false)
+    const r = await staffOpenSessions(tm(), first.id, 4)
     expect([...r.filled, ...r.skipped.map((x) => x.id)].every((id) => weekdayOf(getState().sessions.find((x) => x.id === id)!.date) === 4)).toBe(true)
     expect(clover().filter((s) => weekdayOf(s.date) === 5).every((s) => s.assignments.length === 0)).toBe(true)
   })
 
-  it('confirms every pending session of the program with the facility', () => {
-    const n = confirmProgramWithFacility(tm(), clover()[0].id)
+  it('confirms every pending session of the program with the facility', async () => {
+    const n = await confirmProgramWithFacility(tm(), clover()[0].id)
     expect(n).toBe(16)
     expect(clover().every((s) => s.status === 'confirmed')).toBe(true)
   })
 
-  it('only the territory’s managers can do it', () => {
-    expect(() => confirmProgramWithFacility(user('tm-knx'), clover()[0].id)).toThrow(LifecycleError)
-    expect(() => staffOpenSessions(tm(), clover()[0].id)).toThrow(/Save a coaching staff/)
+  it('only the territory’s managers can do it', async () => {
+    await expect(confirmProgramWithFacility(user('tm-knx'), clover()[0].id)).rejects.toThrow(LifecycleError)
+    await expect(staffOpenSessions(tm(), clover()[0].id)).rejects.toThrow(/Save a coaching staff/)
   })
 })
 
 describe('coach confirmations open the Sunday before', () => {
-  it('a coach can’t confirm a shift weeks ahead, even by skipping the screen', () => {
+  it('a coach can’t confirm a shift weeks ahead, even by skipping the screen', async () => {
     const st = getState()
     const coachUser = st.users.find((u) => u.role === 'coach' && st.sessions.some((s) => s.date > addWeeks(st.today, 3) && s.assignments.some((a) => a.coachId === u.coachId && !a.confirmedByCoach)))!
     const far = st.sessions.find((s) => s.date > addWeeks(st.today, 3) && s.assignments.some((a) => a.coachId === coachUser.coachId && !a.confirmedByCoach))!
-    expect(() => coachConfirmMany(coachUser, [far.id])).toThrow(/the Sunday before its week/)
+    await expect(coachConfirmMany(coachUser, [far.id])).rejects.toThrow(/the Sunday before its week/)
   })
 
-  it('the demo data has no confirmations beyond the open window', () => {
+  it('the demo data has no confirmations beyond the open window', async () => {
     const st = getState()
     for (const s of st.sessions) if (s.date >= st.today && !canConfirmShift(s.date, st.today)) expect(s.assignments.every((a) => !a.confirmedByCoach)).toBe(true)
   })

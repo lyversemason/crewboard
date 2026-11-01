@@ -155,8 +155,8 @@ function SettingsCard({ user, settings }: { user: User; settings: Settings }) {
         <button
           className={`btn ${dirty ? 'save-ready' : 'save-idle'}`}
           disabled={!dirty}
-          onClick={() => {
-            updateSettings(user, draft)
+          onClick={async () => {
+            await updateSettings(user, draft)
             setToast('Settings saved. Every session was re-checked.')
           }}
         >

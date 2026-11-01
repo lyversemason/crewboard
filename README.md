@@ -81,7 +81,7 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 192 automated tests cover the edge cases that matter in
+3. **Tests for every rule.** 198 automated tests cover the edge cases that matter in
    the field: a gap exactly equal to drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
    override, trainees don't count toward the ratio, a day off blocks only that day, a
@@ -110,10 +110,11 @@ Decisions I made where the original spec was silent are listed in
 ```
 src/engine/     Rules engine: types, time + distance, validation, coverage, lifecycle,
                 access, availability, program cycles
-src/data/       Fictional company generator and ZIP lookup
-src/store.ts    The only place data changes, always through the engine
+src/data/       Actions (every change the app can make), the data source
+                (this browser's demo copy), fictional company generator, ZIP lookup
+src/store.ts    What the screens call; hands each change to the data source
 src/views/      One screen per role or task (React)
-tests/          Vitest unit tests for the engine, store actions and demo data
+tests/          Vitest unit tests for the engine, actions, data source and demo data
 scripts/        Screenshot generator for this README
 ```
 

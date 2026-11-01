@@ -88,8 +88,8 @@ function Shifts({ user }: { user: User }) {
       {toConfirm.length > 0 && (
         <button
           className="btn primary block"
-          onClick={() => {
-            coachConfirmMany(user, toConfirm.map((s) => s.id))
+          onClick={async () => {
+            await coachConfirmMany(user, toConfirm.map((s) => s.id))
             setFlash(`Confirmed ${toConfirm.length} shift${toConfirm.length > 1 ? 's' : ''}.`)
           }}
         >
@@ -276,9 +276,9 @@ function Availability({ user }: { user: User }) {
   const [tab, setTab] = useState<'usual' | 'week' | 'off'>('usual')
   const [toast, setToast] = useState('')
   const week = planningWeek(state.today)
-  const done = (msg: string) => {
+  const done = async (msg: string) => {
     // Reviewing and saving counts as this week's check-in.
-    confirmAvailability(user, coach.id, week)
+    await confirmAvailability(user, coach.id, week)
     setToast(msg)
   }
   return (
@@ -319,8 +319,8 @@ function UsualWeek({ user, coach, onSaved }: { user: User; coach: Coach; onSaved
       <button
         className="btn primary block"
         disabled={!dirty}
-        onClick={() => {
-          setAvailability(user, coach.id, draft)
+        onClick={async () => {
+          await setAvailability(user, coach.id, draft)
           onSaved()
         }}
       >
@@ -361,8 +361,8 @@ function OneWeekGrid({ user, coach, monday, weeks, setMonday, onSaved }: { user:
       <button
         className="btn primary block"
         disabled={!dirty}
-        onClick={() => {
-          setWeekChange(user, coach.id, monday, draft)
+        onClick={async () => {
+          await setWeekChange(user, coach.id, monday, draft)
           onSaved(`Saved for ${weekRange(monday)} only.`)
         }}
       >
@@ -371,8 +371,8 @@ function OneWeekGrid({ user, coach, monday, weeks, setMonday, onSaved }: { user:
       {coach.weekChanges[monday] && (
         <button
           className="btn ghost block"
-          onClick={() => {
-            setWeekChange(user, coach.id, monday, null)
+          onClick={async () => {
+            await setWeekChange(user, coach.id, monday, null)
             onSaved('Back to your usual week.')
           }}
         >
@@ -407,8 +407,8 @@ function DaysOff({ user, coach, today, onSaved }: { user: User; coach: Coach; to
               </span>
               <button
                 className="btn small ghost"
-                onClick={() => {
-                  removeTimeOff(user, coach.id, t.id)
+                onClick={async () => {
+                  await removeTimeOff(user, coach.id, t.id)
                   onSaved('Day off removed.')
                 }}
               >
@@ -420,11 +420,11 @@ function DaysOff({ user, coach, today, onSaved }: { user: User; coach: Coach; to
       )}
       <form
         className="inline-form"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
           setError('')
           try {
-            addTimeOff(user, coach.id, { from, to: to || from, note: note.trim() || undefined })
+            await addTimeOff(user, coach.id, { from, to: to || from, note: note.trim() || undefined })
             setFrom('')
             setTo('')
             setNote('')

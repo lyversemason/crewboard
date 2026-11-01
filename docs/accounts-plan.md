@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **planned, decisions made, not started** (written 2026-11-01). Nothing here is built yet.
+Status: **Phase 1 done (v2.4.0, 2026-11-01)**; Phase 2 next. Nothing here is built yet.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -210,6 +210,21 @@ Each phase ends with passing checks and its own version, per the changelog rules
 
 ## Where we left off
 
-Plan written and decisions made 2026-11-01. Next: Phase 1 (split the store into demo and
-live data sources, with no visible change). Creating the Supabase project waits until
-Phase 2, which is the first phase that needs it.
+**Phase 1 done (v2.4.0, 2026-11-01).** Every change is now a pure, named action in
+`src/data/actions.ts`; `src/data/source.ts` defines the `DataSource` interface and the
+demo source (localStorage); `src/store.ts` exposes one async function per action. All
+screens await them. 198 tests pass, and a browser click-through of the main write paths
+(confirm, reschedule, cancel, refused reschedule, coach edit, settings, coach check-in,
+confirm shift, day off, reset) behaved the same before and after.
+
+Notes for later phases:
+- The demo source runs an action on the whole state. The live source will send
+  `{ name, args }` to a server function, which loads the rows the user may see, runs the
+  same action from `src/data/actions.ts`, and writes what changed.
+- Calls still pass `user` from the screen. In live mode the server must ignore it and
+  use the signed-in session (Phase 3).
+- Screens don't yet show a "saving…" state; demo answers are instant. Add one when the
+  live source arrives.
+
+Next: **Phase 2.** It starts with the user creating a free Supabase account and
+project (an outside sign-up, so the user does it or approves it).

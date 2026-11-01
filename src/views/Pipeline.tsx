@@ -69,8 +69,8 @@ export function Pipeline({ user }: { user: User }) {
                 {pendingCount > 0 && canAssign(user, center.territoryId) && (
                   <button
                     className="btn"
-                    onClick={() => {
-                      const n = confirmProgramWithFacility(user, firstPending!.id)
+                    onClick={async () => {
+                      const n = await confirmProgramWithFacility(user, firstPending!.id)
                       setToast(`Confirmed ${n} session${n === 1 ? '' : 's'} with the facility.`)
                     }}
                   >
@@ -153,8 +153,8 @@ function Terms({
             <button
               className={`btn ${price !== terms.cycleRate ? 'save-ready' : 'save-idle'}`}
               disabled={price === terms.cycleRate}
-              onClick={() => {
-                updateTerms(user, center.id, { ...terms, cycleRate: price })
+              onClick={async () => {
+                await updateTerms(user, center.id, { ...terms, cycleRate: price })
                 onSaved(`Price for ${center.name} updated.`)
               }}
             >

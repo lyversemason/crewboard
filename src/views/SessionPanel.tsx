@@ -96,10 +96,10 @@ function Panel({ user, session: s, close, toast }: { user: User; session: Sessio
     })
     .sort((a, b) => a.rank - b.rank || (a.c.level === b.c.level ? a.c.name.localeCompare(b.c.name) : a.c.level === 'lead' ? -1 : 1))
 
-  const run = (fn: () => void, done?: string) => {
+  const run = async (fn: () => unknown, done?: string) => {
     setError('')
     try {
-      fn()
+      await fn()
       if (done) toast(done)
     } catch (e) {
       setError(e instanceof LifecycleError ? e.message : String(e))
@@ -107,8 +107,8 @@ function Panel({ user, session: s, close, toast }: { user: User; session: Sessio
   }
 
   const save = (confirmed: boolean) =>
-    run(() => {
-      const r = saveCrew(user, s.id, draft, confirmed)
+    run(async () => {
+      const r = await saveCrew(user, s.id, draft, confirmed)
       if (r.ok) {
         setConfirming(null)
         toast(confirmed ? 'Coaching staff saved with an override (logged in the history).' : 'Coaching staff saved.')
@@ -454,7 +454,7 @@ function RuleChecks({ session, crew, violations, overridden }: { session: Sessio
   )
 }
 
-function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => void, done?: string) => void }) {
+function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => unknown, done?: string) => Promise<void> }) {
   const route = useRoute()
   const state = useStore()
   const pendingOthers = pendingSessionsLike(s, state.sessions, state.today).length
@@ -475,8 +475,8 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
           <button
             className="btn"
             onClick={() =>
-              run(() => {
-                confirmWithFacility(user, s.id)
+              run(async () => {
+                await confirmWithFacility(user, s.id)
                 setAskRest(pendingOthers > 0)
               }, 'Confirmed with the facility.')
             }
@@ -497,7 +497,7 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
             ✓ This session is confirmed. Also confirm the other <strong>{pendingOthers}</strong> pending session{pendingOthers === 1 ? '' : 's'} of this program?
           </p>
           <div className="actions">
-            <button className="btn primary" onClick={() => run(() => (confirmProgramWithFacility(user, s.id), setAskRest(false)), `Confirmed ${pendingOthers} more with the facility.`)}>
+            <button className="btn primary" onClick={() => run(async () => (await confirmProgramWithFacility(user, s.id), setAskRest(false)), `Confirmed ${pendingOthers} more with the facility.`)}>
               Yes, confirm the other {pendingOthers}
             </button>
             <button className="btn ghost" onClick={() => setAskRest(false)}>
@@ -513,9 +513,9 @@ function Lifecycle({ user, s, run }: { user: User; s: Session; run: (fn: () => v
           className="inline-form"
           onSubmit={(e) => {
             e.preventDefault()
-            run(() => {
+            run(async () => {
               if (date && !isWorkday(date)) throw new LifecycleError('Sessions run Monday to Saturday.')
-              const newId = reschedule(user, s.id, date, start, end, note)
+              const newId = await reschedule(user, s.id, date, start, end, note)
               setParams(route, { s: newId })
             }, s.assignments.length ? 'Rescheduled. The coaching staff was texted to re-confirm.' : 'Rescheduled.')
           }}
@@ -600,8 +600,8 @@ function BulkStaff({ user, s, toast }: { user: User; s: Session; toast: (msg: st
 
   if (!all.fillable.length && !all.left.length) return null
 
-  const apply = (scope: BulkScope) => {
-    const r = staffOpenSessions(user, s.id, scope)
+  const apply = async (scope: BulkScope) => {
+    const r = await staffOpenSessions(user, s.id, scope)
     toast(`Added ${names} to ${r.filled.length} more session${r.filled.length === 1 ? '' : 's'}.`)
   }
 

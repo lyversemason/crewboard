@@ -3,6 +3,25 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.4.0 (2026-11-01 ET): accounts plan, phase 1 (data layer split)
+
+No visible change: the demo works exactly as before. Underneath, the app is ready to
+run against a shared database later.
+
+- Every change the app can make is now a named, pure action in `src/data/actions.ts`
+  (the current data and the user in, the new data and a result out). Each still
+  re-checks permissions and rules.
+- New `src/data/source.ts`: a data source decides where data lives. The only one so far
+  is the demo source (this browser's localStorage copy, same key as before, so saved
+  demos carry over). A live source comes in a later phase.
+- `src/store.ts` is now a thin layer: one async function per action. Every screen waits
+  for the answer, the way it will have to when a server is behind it.
+- 198 tests (was 192): actions never change the data they're given, a refused action
+  leaves the data and subscribers untouched, reset rebuilds the company, and every
+  action has a store function.
+
+Restore this if: anything in the demo behaves differently from v2.3.2.
+
 ## v2.3.2 (2026-11-01 ET): accounts plan decisions
 
 - `docs/accounts-plan.md` records the four decisions: Supabase, email magic links for

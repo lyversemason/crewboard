@@ -153,7 +153,7 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
   }
   const firstError = (Object.keys(errors) as Field[]).find((f) => errors[f])
 
-  const submit = () => {
+  const submit = async () => {
     setError('')
     setTried(true)
     if (firstError) {
@@ -179,9 +179,9 @@ function IntakeForm({ user, editing }: { user: User; editing?: Intake }) {
         notes: notes.trim() || undefined,
       }
       if (editing) {
-        updateIntake(user, editing.id, input)
+        await updateIntake(user, editing.id, input)
         setDone(editing.id)
-      } else setDone(submitIntake(user, input))
+      } else setDone(await submitIntake(user, input))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }

@@ -139,8 +139,15 @@ API, real authentication and a shared database (planned in
   changes, days off) and program cycles. Fully unit-tested (`tests/`).
 - **`src/data/seed.ts`**: generates a believable fake company each time the demo
   resets, dated relative to the current week so the demo never looks stale.
-- **`src/store.ts`**: holds the app state, saves it to the browser's localStorage, and
-  is the only place that changes data (always through engine functions).
+- **`src/data/actions.ts`**: every change the app can make (save a coaching staff,
+  reschedule, submit an intake…) as a pure function: data and user in, new data and
+  a result out. Each one re-checks permissions and rules through the engine.
+- **`src/data/source.ts`**: where data lives. The demo source keeps the fictional
+  company in the browser's localStorage; a live source backed by a shared database is
+  planned in [docs/accounts-plan.md](docs/accounts-plan.md).
+- **`src/store.ts`**: what the screens call. It hands each change to the data source by
+  name and returns a promise, so screens already wait for answers the way they will
+  when a server is behind them.
 - **`src/views/`**: one screen per role/task, React.
 - Static build (Vite) deployed to GitHub Pages. No backend: each visitor gets their
   own copy of the demo company in their browser, and "Reset demo" restores it.
