@@ -3,6 +3,12 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.3.2 (2026-11-01 ET): accounts plan decisions
+
+- `docs/accounts-plan.md` records the four decisions: Supabase, email magic links for
+  everyone (no paid texts), no live instance yet (code, tests and screenshots only), and
+  the invite rules as proposed. Plan only; no app changes.
+
 ## v2.3.1 (2026-11-01 ET): plan for real sign-in and staff accounts
 
 - New `docs/accounts-plan.md`: how a real deployment would add sign-in (invite only,

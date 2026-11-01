@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **planned, not started** (written 2026-11-01). Nothing here is built yet.
+Status: **planned, decisions made, not started** (written 2026-11-01). Nothing here is built yet.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -191,24 +191,25 @@ Each phase ends with passing checks and its own version, per the changelog rules
 
 | Phase | What | Visible change | Version |
 |---|---|---|---|
-| 0 | Decisions below; create the Supabase project | None | – |
+| 0 | Decisions (done 2026-11-01, see below) | None | – |
 | 1 | Split the store into demo and live data sources; demo behaves exactly as today | None | v2.4.0 |
-| 2 | Database tables, `coach_pay` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
+| 2 | Create the Supabase project; database tables, `coach_pay` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
 | 3 | Sign-in screen and live mode; identity from the session, not the address | Live mode only | v2.6.0 |
 | 4 | Invitations, Staff screen, deactivate / reactivate, guard rails (both modes) | Staff screen in the demo | v2.7.0 |
 | 5 | Audit log table and screen; server functions for rule-checked saves | Audit tab in the demo | v2.8.0 |
 | 6 | Live deployment, README and screenshots updated | New README section | v3.0.0 |
 
-## Decisions needed before Phase 1
+## Decisions (made 2026-11-01)
 
-1. **Provider:** Supabase (recommended) or another.
-2. **Coach sign-in:** email magic link (free, recommended) or a texted code (more
-   familiar on phones, but every text costs money).
-3. **A live instance or not:** keep live mode as code plus screenshots only, or run a
-   private live copy of the fictional company with test accounts to show in interviews.
-   The public link stays in demo mode either way.
-4. **Invite rules:** confirm the "who may invite whom" table above.
+1. **Provider:** Supabase.
+2. **Coach sign-in:** email magic link. No texted codes, so sign-in costs nothing.
+3. **Live instance:** not yet. Live mode ships as code, tests and screenshots; the public
+   link stays in demo mode. A private live copy can be added later if an interview calls
+   for it (Supabase pauses idle free projects, so an always-on copy would need upkeep).
+4. **Invite rules:** the "who may invite whom" table above, as written.
 
 ## Where we left off
 
-Plan written 2026-11-01. Next: the user answers the four decisions above, then Phase 1.
+Plan written and decisions made 2026-11-01. Next: Phase 1 (split the store into demo and
+live data sources, with no visible change). Creating the Supabase project waits until
+Phase 2, which is the first phase that needs it.
