@@ -3,6 +3,12 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.4.1 (2026-11-01 ET): accounts plan, no account needed yet
+
+- `docs/accounts-plan.md`: phases 2 to 5 run on Supabase's local version in Docker, so no
+  Supabase account is needed until a live online copy is wanted. Plan only; no app
+  changes.
+
 ## v2.4.0 (2026-11-01 ET): accounts plan, phase 1 (data layer split)
 
 No visible change: the demo works exactly as before. Underneath, the app is ready to

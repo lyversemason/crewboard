@@ -193,7 +193,7 @@ Each phase ends with passing checks and its own version, per the changelog rules
 |---|---|---|---|
 | 0 | Decisions (done 2026-11-01, see below) | None | – |
 | 1 | Split the store into demo and live data sources; demo behaves exactly as today | None | v2.4.0 |
-| 2 | Create the Supabase project; database tables, `coach_pay` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
+| 2 | Local Supabase (Docker, no account); database tables, `coach_pay` split, access rules, rule tests, seed the fictional company | None (local only) | v2.5.0 |
 | 3 | Sign-in screen and live mode; identity from the session, not the address | Live mode only | v2.6.0 |
 | 4 | Invitations, Staff screen, deactivate / reactivate, guard rails (both modes) | Staff screen in the demo | v2.7.0 |
 | 5 | Audit log table and screen; server functions for rule-checked saves | Audit tab in the demo | v2.8.0 |
@@ -226,5 +226,7 @@ Notes for later phases:
 - Screens don't yet show a "saving…" state; demo answers are instant. Add one when the
   live source arrives.
 
-Next: **Phase 2.** It starts with the user creating a free Supabase account and
-project (an outside sign-up, so the user does it or approves it).
+Next: **Phase 2**, built on Supabase's local version (its command-line tool runs the
+whole stack, sign-in emails included, in Docker on this computer). No Supabase account
+is needed for phases 2 to 5; one is only needed when a live online copy is wanted
+(decision 3), and the user creates or approves it then.
