@@ -1,6 +1,6 @@
 # Plan: real sign-in and staff accounts
 
-Status: **Phases 1 and 2 done (v2.5.0, 2026-11-01)**; Phase 3 next. Nothing here is built yet.
+Status: **Phases 1 to 3 done (v2.6.0, 2026-11-01)**; Phase 4 next. Nothing here is built yet.
 
 Today SoccerSessions has no sign-in. The first screen is a "pick a demo user" page, the
 cast of users is fixed in `src/data/seed.ts`, and the current user is whoever is named in
@@ -258,6 +258,26 @@ Notes for later phases:
 - `fromRows` gives coaches without pay access `payRate: 0` and an empty change log;
   screens must not show those as real values (they already don't for coaches).
 
-Next: **Phase 3**, sign-in screen and live mode: a live data source that reads through
-the database's rules, identity from the signed-in session instead of the address, and
-email-link sign-in tested with the local email catcher (Mailpit, port 54324).
+**Phase 3 done (v2.6.0, 2026-11-01).** `npm run dev:live` runs the app against the
+local database (keys passed to Vite for that run only). `src/data/live.ts`: sign-in by
+email link or the 6-digit code in the same email (`supabase/templates/magic_link.html`),
+PKCE so the code arrives as `?code=` and leaves the `#/` routes alone, a data source that
+loads everything the person may read, and `no-access` for deactivated or unknown
+accounts. `src/App.tsx` splits into `DemoApp` (picker, as before) and `LiveApp`
+(identity from the sign-in; an address naming someone else is sent back to your own).
+The demo build doesn't include the database code. Tests: 7 new database tests
+(`tests/db/live.test.ts`, 19 in all), including email-code sign-in read from Mailpit; a
+browser run passed 15 checks (code and link sign-in, address trick, read-only message,
+reload, sign out, wrong code, unknown address) and the demo click-through still passed.
+
+Notes for later phases:
+- Live mode refuses every action with READ_ONLY_MESSAGE. Screens that don't catch
+  errors (e.g. the coach's Confirm buttons) fail silently apart from the banner; add
+  error display when saving arrives.
+- Data loads once at sign-in; there's no refresh yet. Reload after server-side changes.
+- The sales form's live coverage check uses whatever the rep can read; in live mode it
+  needs the server function described above before reps can rely on it.
+
+Next: **Phase 4**, invitations, the Staff screen, deactivate / reactivate and the guard
+rails. It needs the first server functions (inviting uses Supabase's admin API, which
+must never reach a browser): turn on `edge_runtime` in `supabase/config.toml`.

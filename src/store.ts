@@ -6,15 +6,35 @@
 import { useSyncExternalStore } from 'react'
 import type { User } from './engine'
 import type { ActionArgs, ActionName, ActionResult, State } from './data/actions'
+import { createLive } from './data/live'
+import type { AuthState } from './data/live'
 import { demoSource } from './data/source'
 
 export { worldOf } from './data/actions'
 export type { BulkResult, CoachEdit, IntakeInput, SaveCrewResult, State } from './data/actions'
+export type { AuthState } from './data/live'
 
-const source = demoSource()
+// Live mode only when the build is given a database (npm run dev:live). The
+// public demo has none, so it never loads the database code.
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+const live = url && key ? createLive(url, key) : undefined
+const source = live?.source ?? demoSource()
+
+export const mode = source.kind
+/** Sign-in for live mode; undefined in the demo. */
+export const auth = live?.auth
 
 export function useStore(): State {
   return useSyncExternalStore(source.subscribe, source.getState)
+}
+
+const noSubscribe = () => () => {}
+const noAuth = () => undefined
+
+/** Live mode's sign-in state; undefined in the demo. */
+export function useAuth(): AuthState | undefined {
+  return useSyncExternalStore(auth?.subscribe ?? noSubscribe, auth?.get ?? noAuth)
 }
 
 export const getState = () => source.getState()

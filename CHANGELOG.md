@@ -3,6 +3,25 @@
 Every version is tagged in git (`vX.Y.Z`). To restore one, check out its tag and
 commit it as a new version; history is never rewritten.
 
+## v2.6.0 (2026-11-01 ET): accounts plan, phase 3 (sign-in and live mode)
+
+The public demo is unchanged and doesn't include any of this code. Live mode runs
+only against the local database for now (`npm run dev:live`).
+
+- Sign in with your work email: the email has a link and a 6-digit code, for phones
+  where the link opens in a different browser. No passwords and no sign-up; an unknown
+  address gets the same answer as a known one, so the form can't reveal who works here.
+- Who you are comes from your sign-in. Changing the page address to someone else's
+  sends you back to your own screens.
+- Everything each person sees is read through the database's rules: a coach gets only
+  their shifts and no pay rates, a rep only their own submissions.
+- Deactivated people are told their access is off and see no data.
+- Live mode is read-only for now, with a note on every screen; saving comes later.
+- 203 app tests, plus 19 database tests (7 new, including signing in with the code read
+  from the local email catcher).
+
+Restore this if: anything in the demo behaves differently from v2.5.0.
+
 ## v2.5.0 (2026-11-01 ET): accounts plan, phase 2 (local database and its rules)
 
 No visible change: the public demo doesn't use the database. This adds the database

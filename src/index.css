@@ -606,3 +606,9 @@ input.invalid, select.invalid, textarea.invalid, .seg.invalid { border-color: va
   .crew-add select { min-width: 0; width: 100%; }
   .phone-app { border: 0; }
 }
+
+/* Live mode: sign-in and the read-only note */
+.signin-card { max-width: 26rem; margin: 0 auto; }
+.signin-card .field input { font-size: 1.05rem; padding: 0.5em 0.6em; }
+.loading { text-align: center; color: var(--muted); padding: 3em 1em; }
+.live-note { margin: 0.5em 1.25em 0; }

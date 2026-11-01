@@ -3,12 +3,14 @@ import type { ReactNode } from 'react'
 import type { Role, User } from './engine'
 import { ROLE_LABEL } from './ui/format'
 import { go, href, useRoute } from './router'
-import { resetDemo, useStore } from './store'
+import { READ_ONLY_MESSAGE } from './data/live'
+import { auth, mode, resetDemo, useAuth, useStore } from './store'
 import { setGuide, useGuide } from './ui/guide'
 import { AdminDashboard } from './views/AdminDashboard'
 import { CalendarView } from './views/CalendarView'
 import { CoachApp } from './views/CoachApp'
 import { Login } from './views/Login'
+import { NoAccess, SignIn } from './views/SignIn'
 import { Pipeline } from './views/Pipeline'
 import { CoachingStaff } from './views/CoachingStaff'
 import { SalesIntake } from './views/SalesIntake'
@@ -43,15 +45,42 @@ const NAV: Record<Role, { view: string; label: string }[]> = {
 
 
 export default function App() {
+  return mode === 'live' ? <LiveApp /> : <DemoApp />
+}
+
+/** The public demo: whoever is picked on the first screen, named in the address. */
+function DemoApp() {
   const state = useStore()
   const route = useRoute()
   const user = state.users.find((u) => u.id === route.userId)
+  if (!user) return <Login />
+  return <Shell user={user} />
+}
+
+/** Live mode: whoever is signed in. The address can't change who you are. */
+function LiveApp() {
+  const state = useAuth()!
+  const route = useRoute()
+  const me = state.status === 'ready' ? state.me : undefined
 
   useEffect(() => {
-    if (user && !route.view) go(user.id, NAV[user.role][0].view)
+    if (me && route.userId !== me.id) go(me.id)
+  }, [me, route.userId])
+
+  if (state.status === 'loading') return <p className="loading">Loading…</p>
+  if (state.status === 'signed-out') return <SignIn auth={auth!} />
+  if (state.status === 'no-access') return <NoAccess auth={auth!} state={state} />
+  if (!me || route.userId !== me.id) return <p className="loading">Loading…</p>
+  return <Shell user={me} />
+}
+
+function Shell({ user }: { user: User }) {
+  const route = useRoute()
+
+  useEffect(() => {
+    if (!route.view) go(user.id, NAV[user.role][0].view)
   }, [user, route.view])
 
-  if (!user) return <Login />
   const allowed = NAV[user.role].some((n) => n.view === route.view)
   const view = allowed ? route.view! : NAV[user.role][0].view
 
@@ -99,7 +128,7 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
           </span>
           <span>
             <strong>SoccerSessions</strong>
-            <small>Bramblewood Youth Soccer · fictional demo</small>
+            <small>Bramblewood Youth Soccer · {mode === 'live' ? 'live' : 'fictional demo'}</small>
           </span>
         </a>
         <div className="who">
@@ -108,12 +137,21 @@ function Frame({ user, children, compact }: { user: User; children: ReactNode; c
             <small>{ROLE_LABEL[user.role]}</small>
           </span>
           <GuideToggle />
-          <a className="btn ghost" href="#/">
-            Switch user
-          </a>
-          {!compact && <ResetButton />}
+          {mode === 'live' ? (
+            <button className="btn ghost" onClick={() => auth!.signOut()}>
+              Sign out
+            </button>
+          ) : (
+            <>
+              <a className="btn ghost" href="#/">
+                Switch user
+              </a>
+              {!compact && <ResetButton />}
+            </>
+          )}
         </div>
       </header>
+      {mode === 'live' && <p className="callout live-note">{READ_ONLY_MESSAGE}</p>}
       {children}
     </div>
   )

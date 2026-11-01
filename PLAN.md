@@ -146,6 +146,8 @@ API, real authentication and a shared database (planned in
   company in the browser's localStorage; a live source backed by a shared database is
   planned in [docs/accounts-plan.md](docs/accounts-plan.md).
 - **`src/data/rows.ts`**: converts the app's data to database rows and back.
+- **`src/data/live.ts`**: live mode (`npm run dev:live`): email sign-in, and a data
+  source that reads through the database's rules. Read-only until saving arrives.
 - **`supabase/migrations/`**: the database tables and read rules for the planned live
   version; `tests/db/` signs in as every role and checks them against `access.ts`.
 - **`src/store.ts`**: what the screens call. It hands each change to the data source by

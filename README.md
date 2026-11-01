@@ -81,7 +81,7 @@ use.
 2. **Rules engine before screens.** The rules live in one module with no UI
    (`src/engine/`), so they can be tested directly. The territory manager's assignment
    screen and the sales intake call the *same* code, which is what the spec requires.
-3. **Tests for every rule.** 203 automated tests (plus 12 that run against the
+3. **Tests for every rule.** 203 automated tests (plus 19 that run against the
    database) cover the edge cases that matter in the field: a gap exactly equal to
    drive + buffer passes and one minute less fails,
    12 kids is fine, 13 needs a second coach, 19 with one coach is blocked even with an
@@ -144,6 +144,8 @@ The public demo needs nothing else. For the database version in progress (see
 npm run db:start  # start the local database (first run downloads the images)
 npm run db:reset  # empty it and load the fictional company, with a sign-in per person
 npm run test:db   # sign in as every role and check what the database lets each one read
+npm run dev:live  # the app in live mode at http://127.0.0.1:5173: sign in by email
+                  # (emails land in the local catcher at http://127.0.0.1:54324)
 npm run db:stop
 ```
 
